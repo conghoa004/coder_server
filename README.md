@@ -16,39 +16,20 @@ This project starts code-server in a Kaggle Linux runtime and exposes it through
 - Python 3.9 or newer. The scripts use only the Python standard library.
 
 
-## 📥 Clone the repository
-
-Clone the project before starting the server. From a Kaggle notebook cell:
-
-~~~bash
-!git clone https://github.com/conghoa004/coder_server.git
-~~~
-
-Then change the notebook directory to the cloned project:
-
-~~~python
-%cd /kaggle/working/coder_server
-~~~
-
-From a terminal, run the clone command and enter the new directory:
-
-~~~bash
-git clone https://github.com/conghoa004/coder_server.git
-cd coder_server
-~~~
-
 ## 🟢 Start the server
 
 From a terminal in the directory containing the scripts:
 
 ~~~bash
+git clone https://github.com/conghoa004/coder_server.git || (cd coder_server && git pull)
 python start_server.py
 ~~~
 
 Or from a Kaggle notebook cell:
 
 ~~~python
-!python /kaggle/working/coder_server/start_server.py
+!git clone https://github.com/conghoa004/coder_server.git || (cd coder_server && git pull)
+!python start_server.py
 ~~~
 
 When startup completes, the script prints:
