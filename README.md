@@ -29,7 +29,7 @@ Or from a Kaggle notebook cell:
 
 ~~~python
 !if [ -d coder_server/.git ]; then cd coder_server && git pull; else git clone https://github.com/conghoa004/coder_server.git; fi
-!python start_server.py
+!python /kaggle/working/coder_server/start_server.py
 ~~~
 
 When startup completes, the script prints:

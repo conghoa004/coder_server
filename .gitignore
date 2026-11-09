@@ -1,0 +1,28 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Runtime logs and process files
+*.log
+*.pid
+*.pid.lock
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+kaggle.json
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+.idea/
