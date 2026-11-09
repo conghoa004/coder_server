@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Start code-server and a Cloudflare Quick Tunnel in a Kaggle Linux runtime."""
 
+import argparse
 import os
 import re
 import secrets
@@ -198,7 +199,7 @@ def start_code_server():
     SERVER_PID_FILE.write_text(f"{process.pid}\n", encoding="utf-8")
     try:
         wait_for_code_server(process)
-    except Exception:
+    except BaseException:
         terminate_process(process)
         SERVER_PID_FILE.unlink(missing_ok=True)
         raise
@@ -256,7 +257,7 @@ def start_tunnel():
     TUNNEL_PID_FILE.write_text(f"{process.pid}\n", encoding="utf-8")
     try:
         wait_for_tunnel_url(process)
-    except Exception:
+    except BaseException:
         terminate_process(process)
         TUNNEL_PID_FILE.unlink(missing_ok=True)
         raise
@@ -286,7 +287,51 @@ def print_connection_details():
     print("=" * 55)
 
 
-def main():
+def supervise_services(server_process, tunnel_process):
+    """Keep the foreground controller alive while its services are running."""
+    required_server_parts = ("--config", str(CONFIG_FILE))
+    required_tunnel_parts = ("tunnel", "--url", f"http://127.0.0.1:{PORT}")
+    print("Foreground mode: press Ctrl+C to stop services started by this run.")
+
+    while True:
+        server_running = (
+            server_process.poll() is None
+            if server_process is not None
+            else recorded_process_is_running(SERVER_PID_FILE, required_server_parts)
+        )
+        tunnel_running = (
+            tunnel_process.poll() is None
+            if tunnel_process is not None
+            else recorded_process_is_running(TUNNEL_PID_FILE, required_tunnel_parts)
+        )
+        if not server_running or not tunnel_running:
+            stopped = []
+            if not server_running:
+                stopped.append("code-server")
+            if not tunnel_running:
+                stopped.append("Cloudflare Tunnel")
+            print(f"{', '.join(stopped)} stopped; shutting down managed services.")
+            return
+        time.sleep(1)
+
+
+def stop_started_services(server_process, tunnel_process):
+    """Stop only services launched by this invocation and remove their state."""
+    if tunnel_process is not None:
+        terminate_process(tunnel_process)
+        TUNNEL_PID_FILE.unlink(missing_ok=True)
+    if server_process is not None:
+        terminate_process(server_process)
+        SERVER_PID_FILE.unlink(missing_ok=True)
+        CONFIG_FILE.unlink(missing_ok=True)
+
+
+def handle_termination_signal(_signum, _frame):
+    """Route SIGTERM through the normal foreground cleanup path."""
+    raise KeyboardInterrupt
+
+
+def main(foreground=False):
     required_server_parts = ("--config", str(CONFIG_FILE))
     required_tunnel_parts = ("tunnel", "--url", f"http://127.0.0.1:{PORT}")
     server_running = recorded_process_is_running(
@@ -300,6 +345,13 @@ def main():
 
     server_process = None
     tunnel_process = None
+    previous_sigterm_handler = None
+    if foreground:
+        previous_sigterm_handler = signal.signal(
+            signal.SIGTERM,
+            handle_termination_signal,
+        )
+
     try:
         if server_running:
             print("code-server is already running.")
@@ -314,7 +366,9 @@ def main():
             tunnel_process = start_tunnel()
 
         print_connection_details()
-    except Exception:
+        if foreground:
+            supervise_services(server_process, tunnel_process)
+    except BaseException as error:
         if tunnel_process is not None:
             terminate_process(tunnel_process)
             TUNNEL_PID_FILE.unlink(missing_ok=True)
@@ -324,8 +378,15 @@ def main():
             CONFIG_FILE.unlink(missing_ok=True)
         elif not server_running:
             CONFIG_FILE.unlink(missing_ok=True)
-        raise
 
+        if isinstance(error, KeyboardInterrupt) and foreground:
+            print("\nShutdown requested.")
+        else:
+            raise
+    finally:
+        if foreground:
+            stop_started_services(server_process, tunnel_process)
+            signal.signal(signal.SIGTERM, previous_sigterm_handler)
 
 def stop_managed_process(pid_file, required_parts):
     """Stop a managed process by PID after validating its command line."""
@@ -374,7 +435,18 @@ def stop_managed_process(pid_file, required_parts):
 if __name__ == "__main__":
     if os.name != "posix" or not Path("/proc").exists():
         sys.exit("These scripts are intended for a Linux Kaggle runtime.")
+
+    parser = argparse.ArgumentParser(
+        description="Start code-server and a Cloudflare Quick Tunnel."
+    )
+    parser.add_argument(
+        "--foreground",
+        action="store_true",
+        help="keep this process running and supervise the services",
+    )
+    args = parser.parse_args()
+
     try:
-        main()
+        main(foreground=args.foreground)
     except Exception as error:
         sys.exit(f"Failed to start services: {error}")

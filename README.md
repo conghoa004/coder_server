@@ -6,7 +6,6 @@ This project starts code-server in a Kaggle Linux runtime and exposes it through
 
 - ▶️ **start_server.py** installs missing dependencies, starts code-server, and creates the Cloudflare Tunnel.
 - ⏹️ **stop_server.py** stops the code-server and tunnel processes started by start_server.py.
-- 📓 **coder-server.ipynb** contains the original notebook-based setup and usage notes.
 
 ## ✅ Requirements
 
@@ -21,9 +20,15 @@ This project starts code-server in a Kaggle Linux runtime and exposes it through
 From a terminal in the directory containing the scripts:
 
 ~~~bash
-https://github.com/conghoa004/coder_server.gitcom/conghoa004/coder_server.git
+git clone https://github.com/conghoa004/coder_server.git
 cd coder_server
 python start_server.py
+~~~
+
+By default, the Python script starts both services in the background and exits. To keep it in the foreground and stop services started by this run with Ctrl+C:
+
+~~~bash
+python start_server.py --foreground
 ~~~
 
 Or from a Kaggle notebook cell:
