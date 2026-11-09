@@ -1,6 +1,6 @@
 # 🚀 Kaggle Code Server
 
-This project starts code-server in a Kaggle Linux runtime and exposes it through a temporary Cloudflare Quick Tunnel. It lets you use a browser-based VS Code editor with /kaggle/working as the workspace.
+This project starts code-server in a Kaggle Linux runtime and exposes it through a temporary Cloudflare Quick Tunnel. It opens /kaggle/working as the browser-based VS Code workspace.
 
 ## 📁 Files
 
@@ -12,9 +12,30 @@ This project starts code-server in a Kaggle Linux runtime and exposes it through
 
 - A Kaggle Linux notebook runtime.
 - Internet access enabled in Kaggle. The start script downloads code-server and cloudflared if they are not already installed.
+- Git available in the Kaggle runtime.
 - Python 3.9 or newer. The scripts use only the Python standard library.
 
-Place start_server.py and stop_server.py in the Kaggle working directory (usually /kaggle/working). If the files are elsewhere, use their full paths in the commands below.
+
+## 📥 Clone the repository
+
+Clone the project before starting the server. From a Kaggle notebook cell:
+
+~~~bash
+!git clone https://github.com/conghoa004/coder_server.git
+~~~
+
+Then change the notebook directory to the cloned project:
+
+~~~python
+%cd /kaggle/working/coder_server
+~~~
+
+From a terminal, run the clone command and enter the new directory:
+
+~~~bash
+git clone https://github.com/conghoa004/coder_server.git
+cd coder_server
+~~~
 
 ## 🟢 Start the server
 
@@ -27,7 +48,7 @@ python start_server.py
 Or from a Kaggle notebook cell:
 
 ~~~python
-!python /kaggle/working/start_server.py
+!python /kaggle/working/coder_server/start_server.py
 ~~~
 
 When startup completes, the script prints:
@@ -48,7 +69,7 @@ python stop_server.py
 Or from a Kaggle notebook cell:
 
 ~~~python
-!python /kaggle/working/stop_server.py
+!python /kaggle/working/coder_server/stop_server.py
 ~~~
 
 The stop script uses PID files created by the start script. It only signals processes whose command lines match the expected services.
