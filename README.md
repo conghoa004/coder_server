@@ -21,7 +21,8 @@ This project starts code-server in a Kaggle Linux runtime and exposes it through
 From a terminal in the directory containing the scripts:
 
 ~~~bash
-git clone https://github.com/conghoa004/coder_server.git || (cd coder_server && git pull)
+https://github.com/conghoa004/coder_server.gitcom/conghoa004/coder_server.git
+cd coder_server
 python start_server.py
 ~~~
 
