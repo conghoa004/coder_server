@@ -121,10 +121,10 @@ def is_healthy():
         return False
 
 
-def wait_for_code_server(process, timeout=30):
+def wait_for_code_server(process=None, timeout=30):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if process.poll() is not None:
+        if process is not None and process.poll() is not None:
             raise RuntimeError("code-server exited during startup.")
         if is_healthy():
             return
@@ -153,8 +153,6 @@ def terminate_process(process):
 
 
 def start_code_server():
-    global PASSWORD
-
     if is_healthy():
         raise RuntimeError(
             f"Something is already responding at {HEALTH_URL}. "
@@ -168,11 +166,11 @@ def start_code_server():
     install_code_server()
     install_cloudflared()
 
-    PASSWORD = secrets.token_urlsafe(24)
+    password = secrets.token_urlsafe(24)
     CONFIG_FILE.write_text(
         f"bind-addr: 127.0.0.1:{PORT}\n"
         "auth: password\n"
-        f"password: {PASSWORD}\n"
+        f"password: {password}\n"
         "cert: false\n",
         encoding="utf-8",
     )
@@ -207,8 +205,29 @@ def start_code_server():
 
     print("code-server is running.")
     print("Workspace:", WORKSPACE)
-    print("Password (keep private):", PASSWORD)
     return process
+
+
+def read_tunnel_url():
+    """Return the public Quick Tunnel URL from the tunnel log."""
+    if not TUNNEL_LOG.exists():
+        return None
+
+    log_text = TUNNEL_LOG.read_text(encoding="utf-8", errors="ignore")
+    match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", log_text)
+    return match.group(0) if match else None
+
+
+def wait_for_tunnel_url(process=None, timeout=60):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if process is not None and process.poll() is not None:
+            raise RuntimeError("cloudflared exited before publishing its URL.")
+        public_url = read_tunnel_url()
+        if public_url:
+            return public_url
+        time.sleep(1)
+    raise TimeoutError("Timed out waiting for a Cloudflare Quick Tunnel URL.")
 
 
 def start_tunnel():
@@ -235,50 +254,76 @@ def start_tunnel():
         tunnel_log.close()
 
     TUNNEL_PID_FILE.write_text(f"{process.pid}\n", encoding="utf-8")
-    deadline = time.monotonic() + 60
     try:
-        while time.monotonic() < deadline:
-            if process.poll() is not None:
-                raise RuntimeError("cloudflared exited during startup.")
-
-            log_text = TUNNEL_LOG.read_text(encoding="utf-8", errors="ignore")
-            match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", log_text)
-            if match:
-                print("Cloudflare Tunnel is ready.")
-                print("URL:", match.group(0))
-                return
-
-            time.sleep(1)
-
-        raise TimeoutError("Timed out waiting for a Cloudflare Quick Tunnel URL.")
+        wait_for_tunnel_url(process)
     except Exception:
         terminate_process(process)
         TUNNEL_PID_FILE.unlink(missing_ok=True)
         raise
 
+    print("Cloudflare Tunnel is running.")
+    return process
+
+
+def print_connection_details():
+    """Print the saved password and public URL for the running services."""
+    if not CONFIG_FILE.exists():
+        raise RuntimeError(f"Password configuration was not found: {CONFIG_FILE}")
+
+    config_text = CONFIG_FILE.read_text(encoding="utf-8")
+    password_match = re.search(r"(?m)^password:\s*(\S+)\s*$", config_text)
+    if password_match is None:
+        raise RuntimeError("Could not read the password from the code-server config.")
+
+    public_url = read_tunnel_url()
+    if public_url is None:
+        raise RuntimeError(f"Could not find the tunnel URL in {TUNNEL_LOG}.")
+
+    print("=" * 55)
+    print("CODE-SERVER IS READY")
+    print("URL:", public_url)
+    print("PASSWORD (keep private):", password_match.group(1))
+    print("=" * 55)
+
 
 def main():
     required_server_parts = ("--config", str(CONFIG_FILE))
     required_tunnel_parts = ("tunnel", "--url", f"http://127.0.0.1:{PORT}")
-
-    if recorded_process_is_running(SERVER_PID_FILE, required_server_parts):
-        raise RuntimeError("A code-server started by this script is already running.")
-    if recorded_process_is_running(TUNNEL_PID_FILE, required_tunnel_parts):
-        raise RuntimeError("A Cloudflare Tunnel started by this script is already running.")
+    server_running = recorded_process_is_running(
+        SERVER_PID_FILE,
+        required_server_parts,
+    )
+    tunnel_running = recorded_process_is_running(
+        TUNNEL_PID_FILE,
+        required_tunnel_parts,
+    )
 
     server_process = None
+    tunnel_process = None
     try:
-        server_process = start_code_server()
-        start_tunnel()
+        if server_running:
+            print("code-server is already running.")
+            wait_for_code_server()
+        else:
+            server_process = start_code_server()
+
+        if tunnel_running:
+            print("Cloudflare Tunnel is already running.")
+            wait_for_tunnel_url(timeout=30)
+        else:
+            tunnel_process = start_tunnel()
+
+        print_connection_details()
     except Exception:
-        if TUNNEL_PID_FILE.exists():
-            stop_managed_process(
-                TUNNEL_PID_FILE,
-                ("tunnel", "--url", f"http://127.0.0.1:{PORT}"),
-            )
-        terminate_process(server_process)
-        SERVER_PID_FILE.unlink(missing_ok=True)
-        CONFIG_FILE.unlink(missing_ok=True)
+        if tunnel_process is not None:
+            terminate_process(tunnel_process)
+            TUNNEL_PID_FILE.unlink(missing_ok=True)
+        if server_process is not None:
+            terminate_process(server_process)
+            SERVER_PID_FILE.unlink(missing_ok=True)
+            CONFIG_FILE.unlink(missing_ok=True)
+        elif not server_running:
+            CONFIG_FILE.unlink(missing_ok=True)
         raise
 
 
