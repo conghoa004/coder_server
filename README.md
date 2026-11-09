@@ -28,7 +28,7 @@ python start_server.py
 Or from a Kaggle notebook cell:
 
 ~~~python
-!git clone https://github.com/conghoa004/coder_server.git || (cd coder_server && git pull)
+!if [ -d coder_server/.git ]; then cd coder_server && git pull; else git clone https://github.com/conghoa004/coder_server.git; fi
 !python start_server.py
 ~~~
 
