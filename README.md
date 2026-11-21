@@ -1,16 +1,16 @@
 # 🚀 Kaggle Code Server
 
-This project starts code-server in a Kaggle Linux runtime and exposes it through a temporary Cloudflare Quick Tunnel. It opens /kaggle/working as the browser-based VS Code workspace.
+This project starts code-server in a Kaggle Linux runtime, bound to localhost. It opens /kaggle/working as the browser-based VS Code workspace.
 
 ## 📁 Files
 
-- ▶️ **start_server.py** installs missing dependencies, starts code-server, and creates the Cloudflare Tunnel.
-- ⏹️ **stop_server.py** stops the code-server and tunnel processes started by start_server.py.
+- ▶️ **start_server.py** installs missing dependencies and starts code-server.
+- ⏹️ **stop_server.py** stops code-server.
 
 ## ✅ Requirements
 
 - A Kaggle Linux notebook runtime.
-- Internet access enabled in Kaggle. The start script downloads code-server and cloudflared if they are not already installed.
+- Internet access enabled in Kaggle. The start script downloads code-server if it is not already installed.
 - Git available in the Kaggle runtime.
 - Python 3.9 or newer. The scripts use only the Python standard library.
 
@@ -25,7 +25,7 @@ cd coder_server
 python start_server.py
 ~~~
 
-By default, the Python script starts both services in the background and exits. To keep it in the foreground and stop services started by this run with Ctrl+C:
+By default, the Python script starts code-server in the background and exits. To keep it in the foreground and stop it with Ctrl+C:
 
 ~~~bash
 python start_server.py --foreground
@@ -40,10 +40,10 @@ Or from a Kaggle notebook cell:
 
 When startup completes, the script prints:
 
-- The temporary Cloudflare URL.
+- The local address (`http://127.0.0.1:8080` by default).
 - A randomly generated password for the code-server login.
 
-Open the URL in a browser and enter the password. Keep both values private.
+The server is only available inside the Kaggle runtime. Enter the password when connecting through a local proxy or notebook interface.
 
 ## 🛑 Stop the server
 
@@ -63,7 +63,7 @@ The stop script uses PID files created by the start script. It only signals proc
 
 ## 📋 Logs and state
 
-- code-server.log and cloudflared.log are written to the configured workspace.
+- code-server.log is written to the configured workspace.
 - PID files and the temporary code-server configuration are stored under ~/.local/state/kaggle-code-server/ by default.
 - The code-server configuration is created with owner-only permissions and removed when the stop script successfully stops code-server.
 
@@ -86,6 +86,4 @@ CODE_SERVER_PORT=9090 python stop_server.py
 
 ## 🔒 Security notes
 
-The Cloudflare Quick Tunnel makes the editor reachable over the public Internet. Anyone who has both the URL and password can access the editor and its terminal. Do not share notebook outputs or logs containing connection details, and stop the services when you finish.
-
-Quick Tunnels are temporary and are intended for development use, not production deployments.
+The editor listens only on localhost. The password protects access from other local processes that can reach the service.

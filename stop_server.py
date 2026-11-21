@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stop the code-server and Cloudflare Tunnel started by start_server.py."""
+"""Stop code-server started by start_server.py."""
 
 import os
 import signal
@@ -7,7 +7,6 @@ import sys
 import time
 from pathlib import Path
 
-PORT = int(os.environ.get("CODE_SERVER_PORT", "8080"))
 STATE_DIR = Path(
     os.environ.get(
         "CODE_SERVER_STATE_DIR",
@@ -16,7 +15,6 @@ STATE_DIR = Path(
 )
 CONFIG_FILE = STATE_DIR / "config.yaml"
 SERVER_PID_FILE = STATE_DIR / "code-server.pid"
-TUNNEL_PID_FILE = STATE_DIR / "cloudflared.pid"
 
 
 def read_command_line(pid):
@@ -87,10 +85,8 @@ def stop_managed_process(name, pid_file, required_parts):
 
 
 def main():
-    required_tunnel = ("tunnel", "--url", f"http://127.0.0.1:{PORT}")
     required_server = ("--config", str(CONFIG_FILE))
 
-    stop_managed_process("Cloudflare Tunnel", TUNNEL_PID_FILE, required_tunnel)
     server_stopped = stop_managed_process(
         "code-server",
         SERVER_PID_FILE,
