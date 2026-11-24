@@ -27,12 +27,8 @@ A production-ready, automated toolkit to run a full browser-based **VS Code (`co
 ```text
 coder_server/
 ├── start_server.py                  # Starts code-server, Cloudflare tunnel & copies services
-├── stop_server.py                   # Safely terminates all managed processes & cleans state
-├── services/                        # Service definitions (automatically copied to /workspaces/services)
-│   ├── coder/
-│   │   └── install_extension.sh     # Bash script to install VS Code extensions
-│   ├── mysql+phpadmin/              # MySQL & phpMyAdmin service configs
-│   └── redis/                       # Redis service configs
+├── stop_server.py                   # Safely terminates all managed processes & cleans 
+├── services/                        # Service definitions (automatically copied to /
 ├── workspaces/                      # Local workspace folder (.gitignored)
 └── README.md                        # Project documentation
 ```
@@ -54,14 +50,8 @@ coder_server/
 Create a code cell in your Kaggle notebook and run:
 
 ```bash
-%%bash
-if [ -d coder_server/.git ]; then
-    cd coder_server && git pull
-else
-    git clone https://github.com/conghoa004/coder_server.git
-fi
-cd coder_server
-python start_server.py --foreground
+!if [ -d coder_server/.git ]; then cd coder_server && git pull; else git clone https://github.com/conghoa004/coder_server.git; fi
+!python /kaggle/working/coder_server/start_server.py --foreground
 ```
 
 ### 2. In a Linux Terminal
