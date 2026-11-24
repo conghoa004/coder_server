@@ -1,97 +1,197 @@
-# 🚀 Kaggle Code Server
+# 🚀 Remote Code Server & Cloudflare Tunnel
 
-This project starts code-server in a Linux runtime (such as Kaggle) and exposes it securely over the internet through Cloudflare Tunnel. It opens `/workspaces` (or a configured workspace) as the browser-based VS Code workspace.
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Kaggle%20%7C%20Docker-blue?logo=linux)](https://github.com/conghoa004/coder_server)
+[![Python](https://img.shields.io/badge/Python-3.9%2B-brightgreen?logo=python)](https://python.org)
+[![code-server](https://img.shields.io/badge/VS%20Code-code--server-blueviolet?logo=visualstudiocode)](https://github.com/coder/code-server)
+[![Cloudflare Tunnel](https://img.shields.io/badge/Cloudflare-Tunnel-orange?logo=cloudflare)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 
-## 📁 Files
+A lightweight, automated toolkit to launch a full-featured browser-based **VS Code (`code-server`)** inside headless Linux environments (such as **Kaggle Notebooks**, Google Colab, Docker containers, or remote Linux VMs).
 
-- ▶️ **start_server.py** installs missing dependencies, starts code-server, and creates the Cloudflare Tunnel.
-- ⏹️ **stop_server.py** stops the code-server and tunnel processes started by start_server.py.
+It automatically sets up dependencies, configures secure authentication, exposes the service to the internet via **Cloudflare Tunnel** (HTTPS, zero port-forwarding required), initializes a dedicated `/workspaces` folder, and provides an extension installation manager.
 
-## ✅ Requirements
+---
 
-- A Kaggle Linux notebook runtime.
-- Internet access enabled in Kaggle. The start script downloads code-server and cloudflared if they are not already installed.
-- Git available in the Kaggle runtime.
-- Python 3.9 or newer. The scripts use only the Python standard library.
+## ✨ Features
 
-## 🟢 Start the server
+- ⚡ **Zero-Configuration Setup**: Automatically downloads and installs the official standalone `code-server` and `cloudflared` binary (auto-detects `x86_64` and `arm64`).
+- 🌐 **Instant HTTPS Public Access**: Creates an on-demand Cloudflare Quick Tunnel (`https://*.trycloudflare.com`) with zero account required, or connects to your custom domain using Cloudflare Named Tunnel tokens.
+- 📁 **Dedicated Workspace**: Defaults to `/workspaces` (auto-creates if missing), keeping projects clean and isolated.
+- 🔌 **Automated Extensions**: Includes `install_extension.sh` to pre-install essential development tools like Python (`ms-python.python`) and Jupyter (`ms-toolsai.jupyter`).
+- 🔒 **Security First**: Generates a strong cryptographically secure random session password, protects configuration files with `0600` permissions, and binds the web server to localhost.
+- 🔄 **Process Lifecycle Management**: Run as a supervised foreground process (with `Ctrl+C` graceful cleanup) or as a detached daemon with safe PID tracking and validation.
 
-From a terminal in the directory containing the scripts:
+---
 
-~~~bash
+## 📁 Repository Structure
+
+```text
+├── start_server.py        # Starts code-server and Cloudflare Tunnel
+├── stop_server.py         # Gracefully stops all managed services and cleans state
+├── install_extension.sh   # Installs VS Code extensions into code-server
+├── workspaces/            # Default workspace directory (mounted in VS Code)
+└── README.md              # Documentation
+```
+
+---
+
+## 📋 Requirements
+
+- **Operating System**: Linux (x86_64 or arm64), e.g., Kaggle Notebooks, Google Colab, Docker, or Ubuntu VM.
+- **Python**: Python 3.9+ (uses standard library only; no `pip install` required).
+- **Network**: Internet access enabled (in Kaggle: set **Settings > Internet > On**).
+- **Tools**: `bash`, `curl`, and `git` installed in runtime.
+
+---
+
+## 🟢 Quick Start
+
+### 1. In a Kaggle Notebook Cell
+
+Copy and run this cell to clone and start the server in foreground mode:
+
+```bash
+%%bash
+if [ -d coder_server/.git ]; then
+    cd coder_server && git pull
+else
+    git clone https://github.com/conghoa004/coder_server.git
+fi
+cd coder_server
+python start_server.py --foreground
+```
+
+### 2. In a Linux Terminal
+
+```bash
 git clone https://github.com/conghoa004/coder_server.git
 cd coder_server
+
+# Start in the background (daemon mode)
 python start_server.py
-~~~
 
-By default, the Python script starts both services in the background and exits. To keep it in the foreground and stop services started by this run with Ctrl+C:
-
-~~~bash
+# Or start in foreground mode (stops on Ctrl+C)
 python start_server.py --foreground
-~~~
+```
 
-Or from a Kaggle notebook cell:
+### 3. Accessing the IDE
 
-~~~python
-!if [ -d coder_server/.git ]; then cd coder_server && git pull; else git clone https://github.com/conghoa004/coder_server.git; fi
-!python /kaggle/working/coder_server/start_server.py --foreground
-~~~
+When startup completes, you will see output similar to:
 
-When startup completes, the script prints:
+```text
+=======================================================
+CODE-SERVER IS READY
+URL: https://random-subdomain.trycloudflare.com
+Local URL: http://127.0.0.1:8001
+PASSWORD (keep private): dGhpcy1pcy1hLXNlY3JldC1rZXk...
+=======================================================
+```
 
-- The temporary Cloudflare Quick Tunnel URL (`https://*.trycloudflare.com`).
-- The local address (`http://127.0.0.1:8001`).
-- A randomly generated password for the code-server login.
+1. Open the **URL** in any web browser.
+2. Enter the generated **PASSWORD**.
+3. Your VS Code editor is ready at `/workspaces`!
 
-Open the public Cloudflare URL in any browser and enter the password. Keep both values private.
+---
 
-## 🛑 Stop the server
+## 🔌 Installing VS Code Extensions
+
+The repository includes `install_extension.sh` to quickly install extensions into `code-server`.
+
+### Default Extensions Included:
+- 🐍 **`ms-python.python`**: Python language support, linting, debugging, and IntelliSense.
+- 📓 **`ms-toolsai.jupyter`**: Full Jupyter notebook editing and execution inside VS Code.
+
+### How to Run:
 
 From a terminal:
-
-~~~bash
-python stop_server.py
-~~~
+```bash
+bash install_extension.sh
+```
 
 Or from a Kaggle notebook cell:
+```bash
+!bash /kaggle/working/coder_server/install_extension.sh
+```
 
-~~~python
+### Adding Custom Extensions:
+Edit the `EXTENSIONS` array inside `install_extension.sh`:
+
+```bash
+EXTENSIONS=(
+    "ms-python.python"
+    "ms-toolsai.jupyter"
+    "GitHub.copilot"
+    "eamodio.gitlens"
+)
+```
+
+---
+
+## 🛑 Stopping the Server
+
+To stop both `code-server` and `cloudflared` services cleanly and remove temporary credentials:
+
+### Terminal:
+```bash
+python stop_server.py
+```
+
+### Kaggle Notebook Cell:
+```bash
 !python /kaggle/working/coder_server/stop_server.py
-~~~
+```
 
-The stop script uses PID files created by the start script. It only signals processes whose command lines match the expected services.
+The script verifies process command lines against PID records so it never terminates unrelated processes.
 
-## 📋 Logs and state
+---
 
-- `code-server.log` and `cloudflared.log` are written to the configured workspace directory (`/workspaces` by default).
-- PID files and the temporary code-server configuration are stored under `~/.local/state/kaggle-code-server/` by default.
-- The code-server configuration is created with owner-only permissions and removed when the stop script successfully stops code-server.
+## ⚙️ Configuration & Options
 
-## ⚙️ Configuration
+`start_server.py` supports both command-line flags and environment variables:
 
-The scripts accept these optional environment variables or CLI flags:
+| CLI Option | Environment Variable | Default | Description |
+|---|---|---|---|
+| `--port <PORT>` | `CODE_SERVER_PORT` | `8001` | Local port for `code-server`. |
+| `--workspace <PATH>` | `WORKSPACE_DIR` / `KAGGLE_WORKING_DIR` | `/workspaces` | Workspace directory opened in VS Code and log directory. |
+| `--tunnel-token <TOKEN>` | `CLOUDFLARE_TUNNEL_TOKEN` | `None` | Cloudflare Named Tunnel token. If omitted, uses Quick Tunnel (`trycloudflare.com`). |
+| `--no-tunnel` | `NO_TUNNEL=1` | `False` | Run code-server locally only, without Cloudflare Tunnel. |
+| `--foreground` | - | `False` | Run in foreground mode and supervise processes (press `Ctrl+C` to stop). |
+| - | `CODE_SERVER_STATE_DIR` | `~/.local/state/kaggle-code-server` | Location for temporary PID and config files. |
 
-| Variable / Flag | Default | Purpose |
-| --- | --- | --- |
-| `CODE_SERVER_PORT` / `--port` | `8001` | Local port used by code-server. |
-| `WORKSPACE_DIR` / `KAGGLE_WORKING_DIR` / `--workspace` | `/workspaces` | Workspace directory opened in code-server and location for logs (created automatically if not exists). |
-| `CODE_SERVER_STATE_DIR` | `~/.local/state/kaggle-code-server` | Directory for PID files and code-server configuration. |
-| `CLOUDFLARE_TUNNEL_TOKEN` / `--tunnel-token` | `None` | (Optional) Cloudflare Named Tunnel token. If omitted, uses Cloudflare Quick Tunnel (`trycloudflare.com`). |
-| `--no-tunnel` | `False` | Run code-server locally only, without starting Cloudflare Tunnel. |
+### Configuration Examples:
 
-Example:
+```bash
+# Custom port and custom workspace
+python start_server.py --port 9090 --workspace /my/project
 
-~~~bash
-# Run with custom port
-CODE_SERVER_PORT=9090 python start_server.py
-CODE_SERVER_PORT=9090 python stop_server.py
+# Use custom Cloudflare Named Tunnel (Zero Trust token)
+python start_server.py --tunnel-token "eyJh..."
 
-# Run with a Cloudflare Named Tunnel token
-CLOUDFLARE_TUNNEL_TOKEN="your_token_here" python start_server.py
-~~~
+# Run local-only (no public tunnel)
+python start_server.py --no-tunnel
+```
 
-## 🔒 Security notes
+---
 
-The Cloudflare Quick Tunnel makes the editor reachable over the public Internet. Anyone who has both the URL and password can access the editor and its terminal. Do not share notebook outputs or logs containing connection details, and stop the services when you finish.
+## 📋 Logs and Process State
 
-Quick Tunnels are temporary and are intended for development use.
+- **Logs**: Written inside the workspace folder:
+  - `code-server.log`: Server outputs and extension runtime messages.
+  - `cloudflared.log`: Tunnel connections and status events.
+- **State & Config**: Saved under `~/.local/state/kaggle-code-server/`:
+  - `code-server.pid`: PID of the running code-server process.
+  - `cloudflared.pid`: PID of the Cloudflare Tunnel process.
+  - `config.yaml`: Temporary runtime config containing the session password (permissions: `0600`, auto-deleted upon stop).
+
+---
+
+## 🔒 Security Best Practices
+
+- **Private Password**: The generated session password protects against unauthorized access. Keep notebook outputs and logs containing this password private.
+- **Temporary Quick Tunnels**: Free Cloudflare Quick Tunnels are designed for temporary development sessions. For permanent access or custom domains, use Cloudflare Zero Trust Named Tunnel tokens via `--tunnel-token`.
+- **Clean Shutdown**: Always run `python stop_server.py` when your session ends to terminate active tunnels and remove temporary authentication credentials.
+
+---
+
+## 📄 License
+
+MIT License. Feel free to use and modify for your workflows!
