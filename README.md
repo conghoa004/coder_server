@@ -1,6 +1,6 @@
 # 🚀 Kaggle Code Server
 
-This project starts code-server in a Linux runtime (such as Kaggle) and exposes it securely over the internet through Cloudflare Tunnel. It opens `./workspaces` (or a configured workspace) as the browser-based VS Code workspace.
+This project starts code-server in a Linux runtime (such as Kaggle) and exposes it securely over the internet through Cloudflare Tunnel. It opens `/workspaces` (or a configured workspace) as the browser-based VS Code workspace.
 
 ## 📁 Files
 
@@ -40,7 +40,7 @@ Or from a Kaggle notebook cell:
 When startup completes, the script prints:
 
 - The temporary Cloudflare Quick Tunnel URL (`https://*.trycloudflare.com`).
-- The local address (`http://127.0.0.1:8080`).
+- The local address (`http://127.0.0.1:8001`).
 - A randomly generated password for the code-server login.
 
 Open the public Cloudflare URL in any browser and enter the password. Keep both values private.
@@ -63,7 +63,7 @@ The stop script uses PID files created by the start script. It only signals proc
 
 ## 📋 Logs and state
 
-- `code-server.log` and `cloudflared.log` are written to the configured workspace directory (`./workspaces` by default).
+- `code-server.log` and `cloudflared.log` are written to the configured workspace directory (`/workspaces` by default).
 - PID files and the temporary code-server configuration are stored under `~/.local/state/kaggle-code-server/` by default.
 - The code-server configuration is created with owner-only permissions and removed when the stop script successfully stops code-server.
 
@@ -73,8 +73,8 @@ The scripts accept these optional environment variables or CLI flags:
 
 | Variable / Flag | Default | Purpose |
 | --- | --- | --- |
-| `CODE_SERVER_PORT` | `8080` | Local port used by code-server. |
-| `WORKSPACE_DIR` / `KAGGLE_WORKING_DIR` / `--workspace` | `./workspaces` | Workspace directory opened in code-server and location for logs (created automatically if not exists). |
+| `CODE_SERVER_PORT` / `--port` | `8001` | Local port used by code-server. |
+| `WORKSPACE_DIR` / `KAGGLE_WORKING_DIR` / `--workspace` | `/workspaces` | Workspace directory opened in code-server and location for logs (created automatically if not exists). |
 | `CODE_SERVER_STATE_DIR` | `~/.local/state/kaggle-code-server` | Directory for PID files and code-server configuration. |
 | `CLOUDFLARE_TUNNEL_TOKEN` / `--tunnel-token` | `None` | (Optional) Cloudflare Named Tunnel token. If omitted, uses Cloudflare Quick Tunnel (`trycloudflare.com`). |
 | `--no-tunnel` | `False` | Run code-server locally only, without starting Cloudflare Tunnel. |

@@ -14,14 +14,13 @@ import time
 from pathlib import Path
 from urllib.request import urlopen
 
-PORT = int(os.environ.get("CODE_SERVER_PORT", "8080"))
+PORT = int(os.environ.get("CODE_SERVER_PORT", "8001"))
 WORKSPACE = Path(
     os.environ.get(
         "WORKSPACE_DIR",
-        os.environ.get("KAGGLE_WORKING_DIR", "./workspaces"),
+        os.environ.get("KAGGLE_WORKING_DIR", "/workspaces"),
     )
 ).resolve()
-WORKSPACE.mkdir(parents=True, exist_ok=True)
 LOCAL_BIN = Path.home() / ".local" / "bin"
 STATE_DIR = Path(
     os.environ.get(
@@ -367,16 +366,17 @@ def handle_termination_signal(_signum, _frame):
     raise KeyboardInterrupt
 
 
-def main(foreground=False, no_tunnel=False, tunnel_token=None, workspace=None):
-    global WORKSPACE, SERVER_LOG, TUNNEL_LOG
+def main(foreground=False, no_tunnel=False, tunnel_token=None, workspace=None, port=None):
+    global PORT, HEALTH_URL, WORKSPACE, SERVER_LOG, TUNNEL_LOG
+    if port:
+        PORT = port
+        HEALTH_URL = f"http://127.0.0.1:{PORT}/healthz"
     if workspace:
         WORKSPACE = Path(workspace).resolve()
-        WORKSPACE.mkdir(parents=True, exist_ok=True)
         SERVER_LOG = WORKSPACE / "code-server.log"
         TUNNEL_LOG = WORKSPACE / "cloudflared.log"
-    else:
-        WORKSPACE.mkdir(parents=True, exist_ok=True)
 
+    WORKSPACE.mkdir(parents=True, exist_ok=True)
     tunnel_enabled = not no_tunnel
     required_server_parts = ("--config", str(CONFIG_FILE))
     required_tunnel_parts = ("cloudflared", "tunnel")
@@ -463,9 +463,15 @@ if __name__ == "__main__":
         help="Cloudflare named tunnel token (optional)",
     )
     parser.add_argument(
+        "--port",
+        type=int,
+        default=PORT,
+        help="port used by code-server (default: 8001)",
+    )
+    parser.add_argument(
         "--workspace",
         default=None,
-        help="workspace directory opened in code-server (default: ./workspaces)",
+        help="workspace directory opened in code-server (default: /workspaces)",
     )
     args = parser.parse_args()
 
@@ -475,6 +481,7 @@ if __name__ == "__main__":
             no_tunnel=args.no_tunnel,
             tunnel_token=args.tunnel_token,
             workspace=args.workspace,
+            port=args.port,
         )
     except Exception as error:
         sys.exit(f"Failed to start services: {error}")

@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-PORT = int(os.environ.get("CODE_SERVER_PORT", "8080"))
+PORT = int(os.environ.get("CODE_SERVER_PORT", "8001"))
 STATE_DIR = Path(
     os.environ.get(
         "CODE_SERVER_STATE_DIR",
