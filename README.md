@@ -16,6 +16,7 @@ It automatically sets up dependencies, configures secure authentication, exposes
 - ⚡ **Zero-Configuration Setup**: Automatically downloads and installs the official standalone `code-server` and `cloudflared` binary (auto-detects `x86_64` and `arm64`).
 - 🌐 **Instant HTTPS Public Access**: Creates an on-demand Cloudflare Quick Tunnel (`https://*.trycloudflare.com`) with zero account required, or connects to your custom domain using Cloudflare Named Tunnel tokens.
 - 📁 **Dedicated Workspace**: Defaults to `/workspaces` (auto-creates if missing), keeping projects clean and isolated.
+- 📦 **Automatic Services Sync**: Automatically copies the `services/` directory into your workspace (`/workspaces/services`) on startup.
 - 🔌 **Automated Extensions**: Includes `install_extension.sh` to pre-install essential development tools like Python (`ms-python.python`) and Jupyter (`ms-toolsai.jupyter`).
 - 🔒 **Security First**: Generates a strong cryptographically secure random session password, protects configuration files with `0600` permissions, and binds the web server to localhost.
 - 🔄 **Process Lifecycle Management**: Run as a supervised foreground process (with `Ctrl+C` graceful cleanup) or as a detached daemon with safe PID tracking and validation.
@@ -27,7 +28,11 @@ It automatically sets up dependencies, configures secure authentication, exposes
 ```text
 ├── start_server.py        # Starts code-server and Cloudflare Tunnel
 ├── stop_server.py         # Gracefully stops all managed services and cleans state
-├── install_extension.sh   # Installs VS Code extensions into code-server
+├── services/              # Bundled services and scripts (auto-copied to workspace)
+│   ├── coder/
+│   │   └── install_extension.sh
+│   ├── mysql+phpadmin/
+│   └── redis/
 ├── workspaces/            # Default workspace directory (mounted in VS Code)
 └── README.md              # Documentation
 ```
@@ -104,12 +109,12 @@ The repository includes `install_extension.sh` to quickly install extensions int
 
 From a terminal:
 ```bash
-bash install_extension.sh
+bash services/coder/install_extension.sh
 ```
 
 Or from a Kaggle notebook cell:
 ```bash
-!bash /kaggle/working/coder_server/install_extension.sh
+!bash /workspaces/services/coder/install_extension.sh
 ```
 
 ### Adding Custom Extensions:

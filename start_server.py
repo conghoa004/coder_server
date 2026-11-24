@@ -31,13 +31,16 @@ STATE_DIR = Path(
 CONFIG_FILE = STATE_DIR / "config.yaml"
 SERVER_PID_FILE = STATE_DIR / "code-server.pid"
 TUNNEL_PID_FILE = STATE_DIR / "cloudflared.pid"
-SERVER_LOG = WORKSPACE / "code-server.log"
-TUNNEL_LOG = WORKSPACE / "cloudflared.log"
+LOG_DIR = WORKSPACE / "log"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+SERVER_LOG = LOG_DIR / "code-server.log"
+TUNNEL_LOG = LOG_DIR / "cloudflared.log"
 CLOUDFLARED_URL = (
     "https://github.com/cloudflare/cloudflared/releases/latest/download/"
     "cloudflared-linux-amd64"
 )
 HEALTH_URL = f"http://127.0.0.1:{PORT}/healthz"
+SERVICES_DIR = Path(__file__).resolve().parent / "services"
 
 os.environ["PATH"] = f"{LOCAL_BIN}{os.pathsep}{os.environ.get('PATH', '')}"
 
@@ -76,6 +79,38 @@ def install_code_server():
 
     if not find_executable("code-server"):
         raise RuntimeError("The code-server installer completed, but the executable was not found.")
+
+
+def copy_services_to_workspace():
+    """Copy the services directory into the configured workspace."""
+    source_services = SERVICES_DIR.resolve()
+    dest_services = (WORKSPACE / "services").resolve()
+
+    if not source_services.is_dir():
+        return
+
+    if source_services == dest_services:
+        return
+
+    print(f"Copying services from {source_services} to {dest_services}...")
+    try:
+        shutil.copytree(source_services, dest_services, dirs_exist_ok=True)
+        print("Services copied successfully.")
+    except Exception as error:
+        print(f"Warning: Failed to copy services to {dest_services}: {error}")
+
+
+def ensure_workspace_compatibility():
+    """Create a symlink for /workspace <-> /workspaces if running on Linux."""
+    if os.name != "posix":
+        return
+
+    try:
+        alt_workspace = Path("/workspace")
+        if WORKSPACE != alt_workspace and not alt_workspace.exists():
+            alt_workspace.symlink_to(WORKSPACE)
+    except Exception:
+        pass
 
 
 def get_cloudflared_download_url():
@@ -184,6 +219,8 @@ def start_code_server():
     LOCAL_BIN.mkdir(parents=True, exist_ok=True)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     WORKSPACE.mkdir(parents=True, exist_ok=True)
+    ensure_workspace_compatibility()
+    copy_services_to_workspace()
 
     install_code_server()
 
@@ -366,7 +403,13 @@ def handle_termination_signal(_signum, _frame):
     raise KeyboardInterrupt
 
 
-def main(foreground=False, no_tunnel=False, tunnel_token=None, workspace=None, port=None):
+def main(
+    foreground=False,
+    no_tunnel=False,
+    tunnel_token=None,
+    workspace=None,
+    port=None,
+):
     global PORT, HEALTH_URL, WORKSPACE, SERVER_LOG, TUNNEL_LOG
     if port:
         PORT = port
@@ -377,6 +420,8 @@ def main(foreground=False, no_tunnel=False, tunnel_token=None, workspace=None, p
         TUNNEL_LOG = WORKSPACE / "cloudflared.log"
 
     WORKSPACE.mkdir(parents=True, exist_ok=True)
+    ensure_workspace_compatibility()
+    copy_services_to_workspace()
     tunnel_enabled = not no_tunnel
     required_server_parts = ("--config", str(CONFIG_FILE))
     required_tunnel_parts = ("cloudflared", "tunnel")
