@@ -48,11 +48,13 @@ rm -rf /var/log/mysql
 rm -rf /var/run/mysqld
 rm -rf /var/log/apache2
 
-echo "=== [4/4] Removing saved credentials directory ==="
-CRED_DIR="/workspaces/services/mysql+phpadmin"
-if [ -d "$CRED_DIR" ]; then
-  rm -rf "$CRED_DIR"
-  echo "Removed: ${CRED_DIR}"
+echo "=== [4/4] Removing saved credentials file ==="
+CRED_FILE="/workspaces/services/mysql+phpadmin/credentials.txt"
+if [ -f "$CRED_FILE" ]; then
+    rm -f "$CRED_FILE"
+    echo "Removed: ${CRED_FILE}"
+else
+    echo "Credentials file not found. Skipping."
 fi
 
 echo ""
