@@ -61,14 +61,10 @@ Máy Cục Bộ (Client)                                   Máy Chủ Từ Xa (S
 Nếu hệ thống của bạn chưa có sẵn `cargo` và `rustc`, bạn có thể cài đặt nhanh theo hướng dẫn dưới đây:
 
 ### 1. Trên Linux / Kaggle / Google Colab / Ubuntu
-- **Cách 1: Cài qua `rustup` chính thức (Khuyên dùng - luôn có bản mới nhất)**:
+- **Cài qua `rustup` chính thức (Khuyên dùng - luôn có bản mới nhất)**:
   ```bash
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   source "$HOME/.cargo/env"
-  ```
-- **Cách 2: Cài qua apt-get**:
-  ```bash
-  sudo apt-get update && sudo apt-get install -y cargo
   ```
 - **Kiểm tra cài đặt**:
   ```bash
@@ -77,7 +73,7 @@ Nếu hệ thống của bạn chưa có sẵn `cargo` và `rustc`, bạn có th
   ```
 
 ### 2. Trên Windows
-  Tải và chạy file `rustup-init.exe` từ trang chủ [https://rustup.rs/](https://rustup.rs/) (chọn tùy chọn mặc định `1` để cài đặt).
+ **Tải và chạy file `rustup-init.exe` từ trang chủ [https://rustup.rs/](https://rustup.rs/) (chọn tùy chọn mặc định `1` để cài đặt).**
 - **Kiểm tra cài đặt**:
   ```powershell
   cargo --version
@@ -153,7 +149,7 @@ Cloudflare sẽ in ra một địa chỉ HTTPS công khai dạng:
 ### 2. Phía Client (Máy tính cá nhân)
 
 #### Cách 1: Dùng file cấu hình `config.client.toml`
-Mở file [config.client.toml](file:///D:/WORK_SPACE/coder_server/services/ws_bridge/config.client.toml) và điền URL Cloudflare cùng token:
+Mở file [config.client.toml] và điền URL Cloudflare cùng token:
 ```toml
 # Địa chỉ WebSocket Server (Cloudflare tunnel)
 ws_url = "wss://xxx-xxx-xxx.trycloudflare.com"
