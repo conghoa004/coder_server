@@ -157,6 +157,7 @@ CRED_FILE="${CRED_DIR}/credentials.txt"
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 
 mkdir -p "$CRED_DIR"
+
 cat > "$CRED_FILE" <<EOF
 MySQL & phpMyAdmin Credentials
 ==============================
@@ -173,13 +174,14 @@ Access Links:
   - Local Access      : http://localhost:${HTTP_PORT}/phpmyadmin
 ${SERVER_IP:+  - LAN/IP Access     : http://${SERVER_IP}:${HTTP_PORT}/phpmyadmin}
 EOF
+
 chmod 600 "$CRED_FILE"
 
 echo ""
 echo "=========================================================="
+cat "$CRED_FILE"
+echo "=========================================================="
+echo ""
 echo "Installation completed successfully!"
-echo "Apache Web Port : ${HTTP_PORT}"
-echo "MySQL Port      : ${MYSQL_PORT}"
-echo "Root Redirect   : http://localhost:${HTTP_PORT}/ -> /phpmyadmin"
 echo "Credentials saved to: ${CRED_FILE}"
 echo "=========================================================="
