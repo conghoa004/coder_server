@@ -129,8 +129,8 @@ fn rewrite_http_headers(raw: &[u8], target: &str) -> Vec<u8> {
     let mut req = httparse::Request::new(&mut headers);
 
     let parsed = match req.parse(raw) {
-        Ok(httparse::Status::Complete(offset)) | Ok(httparse::Status::Partial(offset)) => offset,
-        Err(_) => return raw.to_vec(), // Not valid HTTP header, pass raw bytes through
+        Ok(httparse::Status::Complete(offset)) => offset,
+        _ => return raw.to_vec(), // Not complete HTTP header, pass raw bytes through
     };
 
     let method = match req.method {

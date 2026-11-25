@@ -29,9 +29,6 @@ pub async fn handle_tcp(
                     }
                 }
                 Ok(Message::Close(_)) => break,
-                Ok(Message::Ping(data)) => {
-                    let _ = ws_sender.send(Message::Pong(data)).await;
-                }
                 Ok(_) => {}
                 Err(e) => {
                     debug!("WS receive error in TCP tunnel: {}", e);

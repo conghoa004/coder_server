@@ -5,7 +5,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// SOCKS5 Dynamic Proxy Listener
 /// Allows any SOCKS5 client (browsers, curl, database GUIs, SSH) to connect to ANY

@@ -11,7 +11,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use url::Url;
 
 pub type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -23,10 +23,10 @@ pub async fn connect_tunnel(
     protocol: TunnelProtocol,
     target: &str,
 ) -> Result<(SplitSink<WsStream, Message>, SplitStream<WsStream>)> {
-    let url = Url::parse(ws_url)
+    let _ = Url::parse(ws_url)
         .with_context(|| format!("Invalid remote WebSocket URL: '{}'", ws_url))?;
 
-    let (ws_stream, _) = tokio_tungstenite::connect_async(url)
+    let (ws_stream, _) = tokio_tungstenite::connect_async(ws_url)
         .await
         .with_context(|| format!("Failed to connect to WebSocket server at {}", ws_url))?;
 
