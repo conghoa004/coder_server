@@ -51,7 +51,7 @@ Create a code cell in your Kaggle notebook and run:
 
 ```bash
 !if [ -d coder_server/.git ]; then cd coder_server && git pull; else git clone https://github.com/conghoa004/coder_server.git; fi
-!python start_server.py --foreground
+!python /kaggle/working/coder_server/start_server.py --foreground
 ```
 
 ### 2. In a Linux Terminal
