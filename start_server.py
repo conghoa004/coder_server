@@ -113,6 +113,31 @@ def ensure_workspace_compatibility():
         pass
 
 
+def run_install_extensions():
+    """Run services/coder/install_extension.sh to install extensions."""
+    script_candidates = [
+        WORKSPACE / "services" / "coder" / "install_extension.sh",
+        SERVICES_DIR / "coder" / "install_extension.sh",
+        Path(__file__).resolve().parent / "install_extension.sh",
+    ]
+    script_path = next((p for p in script_candidates if p.is_file()), None)
+    if not script_path:
+        print("Warning: Extension script not found at services/coder/install_extension.sh")
+        return
+
+    print(f"Installing extensions using {script_path}...")
+    try:
+        subprocess.run(
+            ["bash", str(script_path)],
+            check=True,
+            env=os.environ.copy(),
+        )
+    except subprocess.CalledProcessError as error:
+        print(f"Warning: Extension installation failed (exit code {error.returncode}).")
+    except Exception as error:
+        print(f"Warning: Could not run extension script: {error}")
+
+
 def get_cloudflared_download_url():
     """Determine the cloudflared release asset URL based on machine architecture."""
     arch = platform.machine().lower()
@@ -209,7 +234,7 @@ def terminate_process(process):
         process.wait(timeout=5)
 
 
-def start_code_server():
+def start_code_server(install_extensions=False):
     if is_healthy():
         raise RuntimeError(
             f"Something is already responding at {HEALTH_URL}. "
@@ -223,6 +248,8 @@ def start_code_server():
     copy_services_to_workspace()
 
     install_code_server()
+    if install_extensions:
+        run_install_extensions()
 
     password = secrets.token_urlsafe(32)
     CONFIG_FILE.write_text(
@@ -409,6 +436,7 @@ def main(
     tunnel_token=None,
     workspace=None,
     port=None,
+    install_extensions=False,
 ):
     global PORT, HEALTH_URL, WORKSPACE, SERVER_LOG, TUNNEL_LOG
     if port:
@@ -449,8 +477,10 @@ def main(
         if server_running:
             print("code-server is already running.")
             wait_for_code_server()
+            if install_extensions:
+                run_install_extensions()
         else:
-            server_process = start_code_server()
+            server_process = start_code_server(install_extensions=install_extensions)
 
         if tunnel_enabled:
             install_cloudflared()
@@ -518,6 +548,15 @@ if __name__ == "__main__":
         default=None,
         help="workspace directory opened in code-server (default: /workspaces)",
     )
+    parser.add_argument(
+        "--install-extensions",
+        "--install-extension",
+        "--extensions",
+        dest="install_extensions",
+        action="store_true",
+        default=os.environ.get("INSTALL_EXTENSIONS", "").lower() in ("1", "true", "yes"),
+        help="install VS Code extensions from services/coder/install_extension.sh during startup",
+    )
     args = parser.parse_args()
 
     try:
@@ -527,6 +566,7 @@ if __name__ == "__main__":
             tunnel_token=args.tunnel_token,
             workspace=args.workspace,
             port=args.port,
+            install_extensions=args.install_extensions,
         )
     except Exception as error:
         sys.exit(f"Failed to start services: {error}")

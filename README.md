@@ -16,7 +16,7 @@ A production-ready, automated toolkit to run a full browser-based **VS Code (`co
 - 🌐 **Instant HTTPS Public Access**: Creates a free, temporary Cloudflare Quick Tunnel (`https://*.trycloudflare.com`) on startup, or connects to your custom domain via Cloudflare Named Tunnel tokens.
 - 📁 **Preconfigured Workspace (`/workspaces`)**: Defaults to `/workspaces` as the root workspace directory, created automatically if missing, with full `/workspace` symlink compatibility.
 - 📦 **Automated Services Sync**: Automatically synchronizes the `services/` directory into `/workspaces/services/` upon launch, making your configs and scripts immediately accessible inside the IDE.
-- 🔌 **VS Code Extension Installer**: Includes `services/coder/install_extension.sh` to quickly install essential development extensions (Python, Jupyter, etc.).
+- 🔌 **VS Code Extension Installer**: Includes `services/coder/install_extension.sh` to install development extensions (Python, Jupyter, etc.), with optional `--install-extensions` flag on startup.
 - 🔒 **Security First**: Automatically generates a cryptographically strong session password, restricts configuration permissions (`0600`), and binds the server locally to `127.0.0.1:8001`.
 - 🔄 **Robust Lifecycle Management**: Supervise processes in the foreground with graceful `Ctrl+C` handling, or run as background daemons with safe PID tracking and `/proc` validation.
 
@@ -51,7 +51,7 @@ Create a code cell in your Kaggle notebook and run:
 
 ```bash
 !if [ -d coder_server/.git ]; then cd coder_server && git pull; else git clone https://github.com/conghoa004/coder_server.git; fi
-!python /kaggle/working/coder_server/start_server.py --foreground
+!python start_server.py --foreground
 ```
 
 ### 2. In a Linux Terminal
@@ -98,6 +98,13 @@ The repository bundles an extension installer at `services/coder/install_extensi
 
 ### How to Run the Installer:
 
+#### Option A: Automatically on Startup
+Use the `--install-extensions` flag (or `INSTALL_EXTENSIONS=1`) to automatically execute the installer during startup:
+```bash
+python start_server.py --install-extensions --foreground
+```
+
+#### Option B: Manually Anytime
 - **Inside the code-server integrated terminal**:
   ```bash
   bash /workspaces/services/coder/install_extension.sh
@@ -153,6 +160,7 @@ The scripts can be configured via CLI flags or environment variables:
 |---|---|---|---|
 | `--port <PORT>` | `CODE_SERVER_PORT` | `8001` | Local port used by `code-server`. |
 | `--workspace <PATH>` | `WORKSPACE_DIR` / `KAGGLE_WORKING_DIR` | `/workspaces` | Workspace directory opened in code-server and destination for `services/`. |
+| `--install-extensions` | `INSTALL_EXTENSIONS` | `False` | Run `services/coder/install_extension.sh` during startup to install VS Code extensions. |
 | `--tunnel-token <TOKEN>` | `CLOUDFLARE_TUNNEL_TOKEN` | `None` | Cloudflare Zero Trust Named Tunnel token. If omitted, uses Cloudflare Quick Tunnel (`trycloudflare.com`). |
 | `--no-tunnel` | - | `False` | Run code-server locally only, without Cloudflare Tunnel. |
 | `--foreground` | - | `False` | Supervise services in the foreground; stops cleanly on `Ctrl+C`. |
@@ -163,6 +171,9 @@ The scripts can be configured via CLI flags or environment variables:
 ```bash
 # Run on a custom port and custom workspace:
 python start_server.py --port 9090 --workspace /my/workspace --foreground
+
+# Start server and automatically install coder extensions:
+python start_server.py --install-extensions --foreground
 
 # Connect using a permanent Cloudflare Named Tunnel token:
 python start_server.py --tunnel-token "eyJh..." --foreground
