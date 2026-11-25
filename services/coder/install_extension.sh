@@ -11,6 +11,7 @@ EXTENSIONS=(
     "ms-toolsai.jupyter"
     "formulahendry.code-runner"
     "willbot.tunnelfy"
+    "tamasfe.even-better-toml"
 )
 
 # ==========================================
