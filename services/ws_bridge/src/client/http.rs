@@ -1,9 +1,10 @@
+use crate::bridge::bridge_tcp_ws;
 use crate::client::connect_tunnel;
 use crate::config::TunnelRule;
 use crate::protocol::TunnelProtocol;
 use anyhow::{Context, Result};
-use futures_util::{SinkExt, StreamExt};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use futures_util::SinkExt;
+use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{debug, error, info, warn};
@@ -52,75 +53,24 @@ async fn handle_http_client(
     token: &str,
     target: &str,
 ) -> Result<()> {
-    // Read the initial chunk to inspect and rewrite headers if applicable
-    let mut initial_buf = vec![0u8; 8192];
+    // Read the initial chunk (up to 32KB) to inspect and rewrite headers if applicable
+    let mut initial_buf = vec![0u8; 32768];
     let n = local_stream.read(&mut initial_buf).await?;
     if n == 0 {
         return Ok(());
     }
     initial_buf.truncate(n);
 
-    // Optional header rewrite: rewrite Host header to target so Apache / phpMyAdmin
-    // recognizes the host and generates proper links and redirects
+    // Rewrite Host header to target so Apache / phpMyAdmin recognizes the host
     let modified_buf = rewrite_http_headers(&initial_buf, target);
 
-    let (mut ws_sender, mut ws_receiver) =
+    let (mut ws_sender, ws_receiver) =
         connect_tunnel(ws_url, token, TunnelProtocol::Http, target).await?;
 
     // Send the first (potentially rewritten) HTTP request chunk
     ws_sender.send(Message::Binary(modified_buf)).await?;
 
-    let (mut tcp_reader, mut tcp_writer) = local_stream.into_split();
-
-    // tcp -> ws
-    let tcp_to_ws = async {
-        let mut buf = vec![0u8; 65536];
-        loop {
-            match tcp_reader.read(&mut buf).await {
-                Ok(0) => break,
-                Ok(bytes_read) => {
-                    let data = buf[..bytes_read].to_vec();
-                    if let Err(e) = ws_sender.send(Message::Binary(data)).await {
-                        debug!("WS send error: {}", e);
-                        break;
-                    }
-                }
-                Err(e) => {
-                    debug!("TCP read error: {}", e);
-                    break;
-                }
-            }
-        }
-        let _ = ws_sender.close().await;
-    };
-
-    // ws -> tcp
-    let ws_to_tcp = async {
-        while let Some(msg) = ws_receiver.next().await {
-            match msg {
-                Ok(Message::Binary(data)) => {
-                    if let Err(e) = tcp_writer.write_all(&data).await {
-                        debug!("TCP write error: {}", e);
-                        break;
-                    }
-                }
-                Ok(Message::Close(_)) => break,
-                Ok(_) => {}
-                Err(e) => {
-                    debug!("WS receive error in HTTP tunnel: {}", e);
-                    break;
-                }
-            }
-        }
-        let _ = tcp_writer.shutdown().await;
-    };
-
-    tokio::select! {
-        _ = tcp_to_ws => {},
-        _ = ws_to_tcp => {},
-    }
-
-    Ok(())
+    bridge_tcp_ws(local_stream, ws_sender, ws_receiver).await
 }
 
 /// Rewrites the Host header in the initial HTTP request buffer to match the target

@@ -1,10 +1,10 @@
+use crate::bridge::bridge_tcp_ws;
 use crate::client::connect_tunnel;
 use crate::protocol::TunnelProtocol;
 use anyhow::{Context, Result};
-use futures_util::{SinkExt, StreamExt};
+use std::net::Ipv6Addr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio_tungstenite::tungstenite::Message;
 use tracing::{debug, info, warn};
 
 /// SOCKS5 Dynamic Proxy Listener
@@ -76,7 +76,6 @@ async fn handle_socks5_client(
 
     // We support CONNECT (0x01)
     if cmd != 0x01 {
-        // Command not supported
         stream.write_all(&[0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
         anyhow::bail!("Unsupported SOCKS5 command: {}", cmd);
     }
@@ -97,11 +96,10 @@ async fn handle_socks5_client(
             String::from_utf8(domain).context("Invalid UTF-8 domain name")?
         }
         0x04 => {
-            // IPv6 (16 bytes)
+            // IPv6 (16 bytes) - must be bracketed when formatted with :port
             let mut ip = [0u8; 16];
             stream.read_exact(&mut ip).await?;
-            use std::net::Ipv6Addr;
-            Ipv6Addr::from(ip).to_string()
+            format!("[{}]", Ipv6Addr::from(ip))
         }
         _ => {
             stream.write_all(&[0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
@@ -117,7 +115,7 @@ async fn handle_socks5_client(
     debug!("[SOCKS5] Requesting tunnel to {}", target);
 
     // 3. Connect to WebSocket tunnel
-    let (mut ws_sender, mut ws_receiver) = match connect_tunnel(
+    let (ws_sender, ws_receiver) = match connect_tunnel(
         ws_url,
         token,
         TunnelProtocol::Tcp,
@@ -136,54 +134,6 @@ async fn handle_socks5_client(
     // Reply SOCKS5 Success (0x00)
     stream.write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
 
-    // 4. Bi-directional forwarding
-    let (mut tcp_reader, mut tcp_writer) = stream.into_split();
-
-    let tcp_to_ws = async {
-        let mut buf = vec![0u8; 65536];
-        loop {
-            match tcp_reader.read(&mut buf).await {
-                Ok(0) => break,
-                Ok(n) => {
-                    let data = buf[..n].to_vec();
-                    if let Err(e) = ws_sender.send(Message::Binary(data)).await {
-                        debug!("WS send error: {}", e);
-                        break;
-                    }
-                }
-                Err(e) => {
-                    debug!("TCP read error: {}", e);
-                    break;
-                }
-            }
-        }
-        let _ = ws_sender.close().await;
-    };
-
-    let ws_to_tcp = async {
-        while let Some(msg) = ws_receiver.next().await {
-            match msg {
-                Ok(Message::Binary(data)) => {
-                    if let Err(e) = tcp_writer.write_all(&data).await {
-                        debug!("TCP write error: {}", e);
-                        break;
-                    }
-                }
-                Ok(Message::Close(_)) => break,
-                Ok(_) => {}
-                Err(e) => {
-                    debug!("WS receive error: {}", e);
-                    break;
-                }
-            }
-        }
-        let _ = tcp_writer.shutdown().await;
-    };
-
-    tokio::select! {
-        _ = tcp_to_ws => {},
-        _ = ws_to_tcp => {},
-    }
-
-    Ok(())
+    // 4. Bi-directional forwarding with Ping keepalive
+    bridge_tcp_ws(stream, ws_sender, ws_receiver).await
 }

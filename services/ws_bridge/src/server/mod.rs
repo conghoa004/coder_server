@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{error, info, warn};
@@ -61,17 +62,21 @@ async fn handle_connection(
     peer_addr: SocketAddr,
     config: Arc<ServerConfig>,
 ) -> Result<()> {
-    let ws_stream = tokio_tungstenite::accept_async(stream)
+    let handshake_timeout = Duration::from_secs(15);
+
+    let ws_stream = tokio::time::timeout(handshake_timeout, tokio_tungstenite::accept_async(stream))
         .await
+        .context("WebSocket upgrade handshake timed out")?
         .context("WebSocket handshake failed")?;
 
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
-    // 1. Wait for handshake request
-    let first_msg = match ws_receiver.next().await {
-        Some(Ok(msg)) => msg,
-        Some(Err(e)) => anyhow::bail!("Failed to read initial handshake message: {}", e),
-        None => anyhow::bail!("Client disconnected before handshake"),
+    // 1. Wait for handshake request with timeout
+    let first_msg = match tokio::time::timeout(handshake_timeout, ws_receiver.next()).await {
+        Ok(Some(Ok(msg))) => msg,
+        Ok(Some(Err(e))) => anyhow::bail!("Failed to read initial handshake message: {}", e),
+        Ok(None) => anyhow::bail!("Client disconnected before handshake"),
+        Err(_) => anyhow::bail!("Timed out waiting for client handshake payload"),
     };
 
     let handshake_text = match first_msg {

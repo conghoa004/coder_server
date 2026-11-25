@@ -1,11 +1,9 @@
+use crate::bridge::bridge_tcp_ws;
 use crate::client::connect_tunnel;
 use crate::config::TunnelRule;
 use crate::protocol::TunnelProtocol;
 use anyhow::{Context, Result};
-use futures_util::{SinkExt, StreamExt};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio_tungstenite::tungstenite::Message;
 use tracing::{debug, error, info, warn};
 
 pub async fn run_tcp_listener(
@@ -49,58 +47,8 @@ async fn handle_tcp_client(
     token: &str,
     target: &str,
 ) -> Result<()> {
-    let (mut ws_sender, mut ws_receiver) =
+    let (ws_sender, ws_receiver) =
         connect_tunnel(ws_url, token, TunnelProtocol::Tcp, target).await?;
 
-    let (mut tcp_reader, mut tcp_writer) = local_stream.into_split();
-
-    // tcp -> ws
-    let tcp_to_ws = async {
-        let mut buf = vec![0u8; 65536];
-        loop {
-            match tcp_reader.read(&mut buf).await {
-                Ok(0) => break,
-                Ok(n) => {
-                    let data = buf[..n].to_vec();
-                    if let Err(e) = ws_sender.send(Message::Binary(data)).await {
-                        debug!("WS send error: {}", e);
-                        break;
-                    }
-                }
-                Err(e) => {
-                    debug!("TCP read error: {}", e);
-                    break;
-                }
-            }
-        }
-        let _ = ws_sender.close().await;
-    };
-
-    // ws -> tcp
-    let ws_to_tcp = async {
-        while let Some(msg) = ws_receiver.next().await {
-            match msg {
-                Ok(Message::Binary(data)) => {
-                    if let Err(e) = tcp_writer.write_all(&data).await {
-                        debug!("TCP write error: {}", e);
-                        break;
-                    }
-                }
-                Ok(Message::Close(_)) => break,
-                Ok(_) => {}
-                Err(e) => {
-                    debug!("WS receive error: {}", e);
-                    break;
-                }
-            }
-        }
-        let _ = tcp_writer.shutdown().await;
-    };
-
-    tokio::select! {
-        _ = tcp_to_ws => {},
-        _ = ws_to_tcp => {},
-    }
-
-    Ok(())
+    bridge_tcp_ws(local_stream, ws_sender, ws_receiver).await
 }

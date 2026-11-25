@@ -7,72 +7,81 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
 use tracing::debug;
 
+const UDP_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+
 pub async fn handle_udp(
     mut ws_sender: SplitSink<WebSocketStream<TcpStream>, Message>,
     mut ws_receiver: SplitStream<WebSocketStream<TcpStream>>,
     target: &str,
 ) -> Result<()> {
-    // Bind ephemeral UDP socket for this session
-    let socket = UdpSocket::bind("0.0.0.0:0")
+    let target_addr = tokio::net::lookup_host(target)
         .await
-        .context("Failed to bind ephemeral UDP socket")?;
+        .with_context(|| format!("Failed to resolve UDP target {}", target))?
+        .next()
+        .with_context(|| format!("No address resolved for UDP target {}", target))?;
+
+    let bind_addr = if target_addr.is_ipv4() {
+        "0.0.0.0:0"
+    } else {
+        "[::]:0"
+    };
+
+    // Bind ephemeral UDP socket matching target IP family
+    let socket = UdpSocket::bind(bind_addr)
+        .await
+        .with_context(|| format!("Failed to bind ephemeral UDP socket on {}", bind_addr))?;
 
     socket
-        .connect(target)
+        .connect(target_addr)
         .await
-        .with_context(|| format!("Failed to connect UDP socket to target {}", target))?;
+        .with_context(|| format!("Failed to connect UDP socket to target {}", target_addr))?;
 
-    let timeout_duration = Duration::from_secs(60);
+    let mut buf = vec![0u8; 65536];
+    let idle_sleep = tokio::time::sleep(UDP_IDLE_TIMEOUT);
+    tokio::pin!(idle_sleep);
 
-    // Forward WS binary -> UDP socket
-    let ws_to_udp = async {
-        while let Some(msg) = ws_receiver.next().await {
-            match msg {
-                Ok(Message::Binary(data)) => {
-                    if let Err(e) = socket.send(&data).await {
-                        debug!("UDP send error: {}", e);
+    loop {
+        tokio::select! {
+            msg = ws_receiver.next() => {
+                match msg {
+                    Some(Ok(Message::Binary(data))) => {
+                        idle_sleep.as_mut().reset(tokio::time::Instant::now() + UDP_IDLE_TIMEOUT);
+                        if let Err(e) = socket.send(&data).await {
+                            debug!("UDP send error: {}", e);
+                            break;
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    Some(Ok(_)) => {}
+                    Some(Err(e)) => {
+                        debug!("WS receive error in UDP tunnel: {}", e);
                         break;
                     }
                 }
-                Ok(Message::Close(_)) => break,
-                Ok(_) => {}
-                Err(e) => {
-                    debug!("WS receive error in UDP tunnel: {}", e);
-                    break;
-                }
             }
-        }
-    };
-
-    // Forward UDP socket -> WS binary
-    let udp_to_ws = async {
-        let mut buf = vec![0u8; 65536];
-        loop {
-            match tokio::time::timeout(timeout_duration, socket.recv(&mut buf)).await {
-                Ok(Ok(n)) => {
-                    let data = buf[..n].to_vec();
-                    if let Err(e) = ws_sender.send(Message::Binary(data)).await {
-                        debug!("WS send error in UDP tunnel: {}", e);
+            res = socket.recv(&mut buf) => {
+                match res {
+                    Ok(n) => {
+                        idle_sleep.as_mut().reset(tokio::time::Instant::now() + UDP_IDLE_TIMEOUT);
+                        let data = buf[..n].to_vec();
+                        if let Err(e) = ws_sender.send(Message::Binary(data)).await {
+                            debug!("WS send error in UDP tunnel: {}", e);
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        debug!("UDP read error: {}", e);
                         break;
                     }
                 }
-                Ok(Err(e)) => {
-                    debug!("UDP read error: {}", e);
-                    break;
-                }
-                Err(_) => {
-                    debug!("UDP session idle timeout");
-                    break;
-                }
+            }
+            _ = &mut idle_sleep => {
+                debug!("UDP session idle timeout");
+                break;
             }
         }
-        let _ = ws_sender.close().await;
-    };
-
-    tokio::select! {
-        _ = ws_to_udp => {},
-        _ = udp_to_ws => {},
     }
 
+    let _ = ws_sender.close().await;
     Ok(())
 }
