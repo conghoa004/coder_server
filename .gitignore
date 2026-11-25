@@ -29,3 +29,7 @@ Thumbs.db
 
 # Workspace directory
 workspaces/
+
+# Rust / ws_bridge build artifacts
+services/ws_bridge/target/
+services/ws_bridge/Cargo.lock
