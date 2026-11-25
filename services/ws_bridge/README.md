@@ -69,6 +69,12 @@ cargo build --release
 ```
 File thực thi sau khi build nằm tại: `target/release/wsb`.
 
+> [!TIP]
+> Bạn có thể chạy trực tiếp bằng đường dẫn `./target/release/wsb`, hoặc copy vào PATH để có thể gõ lệnh `wsb` từ bất kỳ thư mục nào:
+> ```bash
+> cp target/release/wsb ~/.local/bin/   # hoặc sudo cp target/release/wsb /usr/local/bin/
+> ```
+
 ### Trên Windows
 ```powershell
 cargo build --release
@@ -83,19 +89,19 @@ File thực thi: `target\release\wsb.exe`.
 
 #### Cách 1: Dùng file cấu hình `config.server.toml`
 ```bash
-./wsb server -c config.server.toml
+./target/release/wsb server -c config.server.toml
 ```
 
 #### Cách 2: Dùng cờ lệnh trực tiếp (CLI flags)
 ```bash
 # Tự động tạo token ngẫu nhiên bảo mật 256-bit (Khuyên dùng):
-./wsb server --listen 0.0.0.0:8766
+./target/release/wsb server --listen 0.0.0.0:8766
 
 # Hoặc chỉ định token cố định theo ý muốn:
-./wsb server --listen 0.0.0.0:8766 --token "mat-khau-bi-mat"
+./target/release/wsb server --listen 0.0.0.0:8766 --token "mat-khau-bi-mat"
 
 # Tạo riêng một token ngẫu nhiên để lưu vào file cấu hình:
-./wsb gen-token
+./target/release/wsb gen-token
 ```
 
 #### Public server ra internet bằng Cloudflare Tunnel:
@@ -154,12 +160,12 @@ target = "1.1.1.1:53"
 
 Chạy client với cấu hình trên:
 ```bash
-./wsb client -c config.client.toml
+./target/release/wsb client -c config.client.toml
 ```
 
 #### Cách 2: Dùng dòng lệnh (CLI flags) nhanh gọn
 ```bash
-./wsb client \
+./target/release/wsb client \
   --ws "wss://xxx-xxx-xxx.trycloudflare.com" \
   --token "mat-khau-bi-mat" \
   --tcp 127.0.0.1:13306=127.0.0.1:3306 \
