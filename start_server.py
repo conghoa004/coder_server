@@ -224,7 +224,7 @@ def start_code_server():
 
     install_code_server()
 
-    password = secrets.token_urlsafe(24)
+    password = secrets.token_urlsafe(32)
     CONFIG_FILE.write_text(
         f"bind-addr: 127.0.0.1:{PORT}\n"
         "auth: password\n"
