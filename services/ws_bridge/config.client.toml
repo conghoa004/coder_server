@@ -1,0 +1,50 @@
+# ===============================================
+# WS-BRIDGE CLIENT CONFIGURATION
+# ===============================================
+
+# Remote WebSocket URL (e.g. Cloudflare tunnel URL or direct domain)
+ws_url = "wss://specification-amd-residence-lead.trycloudflare.com"
+
+# Secret token matching the server config
+token = "12345"
+
+# Optional: SOCKS5 Dynamic Proxy
+# Enables transparent tunneling to ANY remote host/port through a single local port!
+socks5 = "127.0.0.1:1080"
+
+# --- Static Port Forwarding Rules ---
+
+# 1. MySQL TCP Tunnel
+[[tunnels]]
+name = "mysql"
+protocol = "tcp"
+listen = "127.0.0.1:13306"
+target = "127.0.0.1:3306"
+
+# 2. Redis TCP Tunnel
+[[tunnels]]
+name = "redis"
+protocol = "tcp"
+listen = "127.0.0.1:16379"
+target = "127.0.0.1:6379"
+
+# 3. HTTP Web Server / phpMyAdmin
+[[tunnels]]
+name = "web_phpmyadmin"
+protocol = "http"
+listen = "127.0.0.1:18080"
+target = "127.0.0.1:80"
+
+# 4. SSH TCP Tunnel
+[[tunnels]]
+name = "ssh"
+protocol = "tcp"
+listen = "127.0.0.1:10022"
+target = "127.0.0.1:22"
+
+# 5. DNS UDP Tunnel
+[[tunnels]]
+name = "dns"
+protocol = "udp"
+listen = "127.0.0.1:10053"
+target = "1.1.1.1:53"

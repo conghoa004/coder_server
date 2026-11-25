@@ -1,0 +1,19 @@
+# ===============================================
+# WS-BRIDGE SERVER CONFIGURATION
+# ===============================================
+
+# Port to listen for incoming WebSocket connections
+listen = "0.0.0.0:8766"
+
+# Secret token required from clients to authenticate
+token = "12345"
+
+# Optional security whitelist of permitted target addresses.
+# If omitted or commented out, client can connect to any target address.
+# allowed_targets = [
+#     "127.0.0.1:3306",  # MySQL
+#     "127.0.0.1:6379",  # Redis
+#     "127.0.0.1:80",    # HTTP / phpMyAdmin
+#     "127.0.0.1:22",    # SSH
+#     "1.1.1.1:53",      # DNS
+# ]
