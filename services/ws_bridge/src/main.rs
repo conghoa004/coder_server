@@ -84,6 +84,7 @@ struct ClientArgs {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    #[cfg(not(windows))]
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     tracing_subscriber::registry()

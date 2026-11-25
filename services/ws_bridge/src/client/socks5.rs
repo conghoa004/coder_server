@@ -36,7 +36,7 @@ pub async fn run_socks5_listener(
         tokio::spawn(async move {
             debug!("[SOCKS5] Inbound connection from {}", client_addr);
             if let Err(e) = handle_socks5_client(stream, &ws_url, &token).await {
-                debug!("[SOCKS5] Client error for {}: {:#}", client_addr, e);
+                warn!("[SOCKS5] Client error for {}: {:#}", client_addr, e);
             }
         });
     }

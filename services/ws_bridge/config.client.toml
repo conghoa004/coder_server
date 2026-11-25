@@ -3,10 +3,10 @@
 # ===============================================
 
 # Remote WebSocket URL (e.g. Cloudflare tunnel URL or direct domain)
-ws_url = "wss://specification-amd-residence-lead.trycloudflare.com"
+ws_url = "wss://xxx-xxx-xxx.trycloudflare.com"
 
 # Secret token matching the server config
-token = "12345"
+token = "<your_token>"
 
 # Optional: SOCKS5 Dynamic Proxy
 # Enables transparent tunneling to ANY remote host/port through a single local port!

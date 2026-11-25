@@ -8,58 +8,70 @@ import sys
 # ==========================================
 MYSQL_CONFIG = {
     "host": "127.0.0.1",
-    "port": 13306,
-    "user": "admin",
-    "password": "4ed097036457bb0834700d3d81ec699b",
-    "database": "",
+    "port": "<your_port>",
+    "user": "<your_user>",
+    "password": "<your_password>",
     "connection_timeout": 10
 }
 
 
 def test_mysql_connection():
     connection = None
+    cursor = None
 
     print("=" * 50)
     print("         MYSQL CONNECTION TEST")
     print("=" * 50)
 
     try:
+        # Connect to MySQL
         print("[INFO] Connecting to MySQL...")
 
         connection = mysql.connector.connect(**MYSQL_CONFIG)
 
-        if connection.is_connected():
-            print("[SUCCESS] MySQL connection established!")
+        if not connection.is_connected():
+            raise Error("Unable to establish MySQL connection.")
 
-            # Server information
-            db_info = connection.get_server_info()
-            print(f"[INFO] MySQL Version: {db_info}")
+        print("[SUCCESS] MySQL connection established!")
 
-            # Test SQL query
-            cursor = connection.cursor()
-            cursor.execute("SELECT VERSION(), DATABASE(), USER(), NOW()")
+        # Server information
+        print(f"[INFO] MySQL Version: {connection.server_info}")
 
-            result = cursor.fetchone()
+        # Create cursor
+        cursor = connection.cursor()
 
-            print("\n[INFO] Database Information")
-            print(f"  Version  : {result[0]}")
-            print(f"  Database : {result[1]}")
-            print(f"  User     : {result[2]}")
-            print(f"  Time     : {result[3]}")
+        # Database information
+        cursor.execute(
+            "SELECT VERSION(), DATABASE(), USER(), NOW()"
+        )
 
-            # Test query
-            cursor.execute("SELECT 1")
+        result = cursor.fetchone()
+
+        print("\n[INFO] Database Information")
+        print(f"  Version  : {result[0]}")
+        print(f"  Database : {result[1]}")
+        print(f"  User     : {result[2]}")
+        print(f"  Time     : {result[3]}")
+
+        # Test SQL query
+        cursor.execute("SELECT 1")
+        result = cursor.fetchone()
+
+        if result and result[0] == 1:
             print("\n[SUCCESS] SQL Query Test: PASSED")
-
-            cursor.close()
+        else:
+            raise Error("SQL query test failed.")
 
     except Error as e:
-        print(f"\n[ERROR] MySQL Connection Failed!")
+        print("\n[ERROR] MySQL Connection Failed!")
         print(f"[DETAIL] {e}")
         sys.exit(1)
 
     finally:
-        if connection and connection.is_connected():
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None and connection.is_connected():
             connection.close()
             print("\n[INFO] Connection closed.")
 
