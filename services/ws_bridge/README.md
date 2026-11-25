@@ -56,6 +56,43 @@ Máy Cục Bộ (Client)                                   Máy Chủ Từ Xa (S
 
 ---
 
+## 📦 Hướng Dẫn Cài Đặt Cargo & Rust
+
+Nếu hệ thống của bạn chưa có sẵn `cargo` và `rustc`, bạn có thể cài đặt nhanh theo hướng dẫn dưới đây:
+
+### 1. Trên Linux / Kaggle / Google Colab / Ubuntu
+- **Cách 1: Cài qua `rustup` chính thức (Khuyên dùng - luôn có bản mới nhất)**:
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  source "$HOME/.cargo/env"
+  ```
+- **Cách 2: Cài qua apt-get**:
+  ```bash
+  sudo apt-get update && sudo apt-get install -y cargo
+  ```
+- **Kiểm tra cài đặt**:
+  ```bash
+  cargo --version
+  rustc --version
+  ```
+
+### 2. Trên Windows
+  Tải và chạy file `rustup-init.exe` từ trang chủ [https://rustup.rs/](https://rustup.rs/) (chọn tùy chọn mặc định `1` để cài đặt).
+- **Kiểm tra cài đặt**:
+  ```powershell
+  cargo --version
+  ```
+
+### 3. Trên macOS
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+# hoặc cài qua brew:
+# brew install rust
+```
+
+---
+
 ## 🚀 Hướng Dẫn Biên Dịch (Build)
 
 ### Trên Linux / Kaggle / Google Colab
