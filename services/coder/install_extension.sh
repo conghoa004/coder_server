@@ -10,7 +10,7 @@ EXTENSIONS=(
     "ms-python.python"
     "ms-toolsai.jupyter"
     "formulahendry.code-runner"
-    # "willbot.tunnelfy"
+    "willbot.tunnelfy"
 )
 
 # ==========================================
