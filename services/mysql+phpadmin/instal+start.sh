@@ -121,11 +121,18 @@ Alias /phpmyadmin /usr/share/phpmyadmin
 EOF
 fi
 
-# Enable mod_rewrite and redirect root "/" to "/phpmyadmin"
-a2enmod rewrite >/dev/null 2>&1 || true
+# Enable mod_rewrite and mod_headers for proxy/tunnel compatibility
+a2enmod rewrite headers >/dev/null 2>&1 || true
+
+# Redirect exact root "/" to "/phpmyadmin" (works behind Cloudflare Tunnel & direct access)
 cat > /etc/apache2/conf-enabled/root-to-phpmyadmin.conf <<'EOF'
+<IfModule mod_setenvif.c>
+    SetEnvIf X-Forwarded-Proto "^https$" HTTPS=on
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    RewriteCond %{REQUEST_URI} ^/$
     RewriteRule ^/?$ /phpmyadmin [R=302,L]
 </IfModule>
 EOF
