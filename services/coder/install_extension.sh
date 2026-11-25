@@ -9,8 +9,8 @@ set -u
 EXTENSIONS=(
     "ms-python.python"
     "ms-toolsai.jupyter"
-    # "formulahendry.code-runner"
-    "willbot.tunnelfy"
+    "formulahendry.code-runner"
+    # "willbot.tunnelfy"
 )
 
 # ==========================================

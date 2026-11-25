@@ -1,372 +1,105 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -eo pipefail
 
-set -e
-
-export DEBIAN_FRONTEND=noninteractive
-
-MYSQL_VERSION="8.4"
-PHPMYADMIN_VERSION="5.2.3"
-
-MYSQL_USER="kaggle"
-MYSQL_PASSWORD="kaggle123"
-
-PHPMYADMIN_DIR="/var/www/html/phpmyadmin"
-
-echo "=========================================="
-echo " MySQL ${MYSQL_VERSION} + phpMyAdmin"
-echo "=========================================="
-
-# --------------------------------------------------
-# 1. Check root
-# --------------------------------------------------
-
-if [ "$(id -u)" -ne 0 ]; then
-    echo "ERROR: Please run this script as root."
-    echo "Example:"
-    echo "  sudo bash instal+start.sh"
-    exit 1
+# Check for root / sudo privileges
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run this script with root or sudo: sudo bash $0"
+  exit 1
 fi
 
-# --------------------------------------------------
-# 2. Detect Linux distribution
-# --------------------------------------------------
-
-if [ ! -f /etc/os-release ]; then
-    echo "ERROR: Cannot detect Linux distribution."
-    exit 1
+# Check for Debian/Ubuntu system
+if ! command -v apt-get >/dev/null 2>&1; then
+  echo "This script currently supports apt-based systems (Ubuntu/Debian)."
+  exit 1
 fi
 
-source /etc/os-release
-
-echo ""
-echo "[INFO] OS      : ${PRETTY_NAME}"
-echo "[INFO] ID      : ${ID}"
-echo "[INFO] Codename: ${VERSION_CODENAME:-unknown}"
-
-if [ "$ID" != "debian" ] && [ "$ID" != "ubuntu" ]; then
-    echo ""
-    echo "ERROR: This script supports Debian/Ubuntu only."
-    exit 1
+# Ensure openssl is available to generate a random password
+if ! command -v openssl >/dev/null 2>&1; then
+  apt-get update -y
+  apt-get install -y openssl
 fi
 
-if [ -z "${VERSION_CODENAME:-}" ]; then
-    echo "ERROR: Cannot determine Debian/Ubuntu codename."
-    exit 1
-fi
+# Helper function to manage services with or without systemd
+manage_service() {
+  local action="$1"
+  local svc="$2"
 
-CODENAME="$VERSION_CODENAME"
-
-# --------------------------------------------------
-# 3. Update system packages
-# --------------------------------------------------
-
-echo ""
-echo "[1/7] Updating APT..."
-
-apt-get update
-
-# --------------------------------------------------
-# 4. Basic dependencies
-# --------------------------------------------------
-
-echo ""
-echo "[2/7] Installing dependencies..."
-
-apt-get install -y \
-    ca-certificates \
-    wget \
-    curl \
-    gnupg \
-    lsb-release \
-    debconf-utils \
-    apache2 \
-    php \
-    php-cli \
-    php-common \
-    php-mysql \
-    php-mbstring \
-    php-zip \
-    php-gd \
-    php-curl \
-    php-xml \
-    php-bcmath \
-    unzip
-
-# --------------------------------------------------
-# 5. Install official MySQL APT Repository
-# --------------------------------------------------
-
-echo ""
-echo "[3/7] Installing official MySQL APT Repository..."
-
-cd /tmp
-
-MYSQL_APT_PACKAGE="mysql-apt-config_0.8.40-1_all.deb"
-
-wget -q \
-    "https://dev.mysql.com/get/${MYSQL_APT_PACKAGE}" \
-    -O "${MYSQL_APT_PACKAGE}"
-
-if [ ! -s "${MYSQL_APT_PACKAGE}" ]; then
-    echo "ERROR: Failed to download MySQL APT Repository package."
-    exit 1
-fi
-
-dpkg -i "${MYSQL_APT_PACKAGE}" || true
-
-# --------------------------------------------------
-# Force MySQL 8.4 LTS repository
-# --------------------------------------------------
-
-echo ""
-echo "[INFO] Configuring MySQL ${MYSQL_VERSION} LTS repository..."
-
-# Find MySQL repository files
-MYSQL_REPO_FILES=$(find /etc/apt/sources.list.d \
-    -maxdepth 1 \
-    -type f \
-    \( -name "*mysql*.list" -o -name "*mysql*.sources" \) \
-    2>/dev/null || true)
-
-if [ -z "$MYSQL_REPO_FILES" ]; then
-    echo "ERROR: MySQL APT repository file was not found."
-    exit 1
-fi
-
-echo "[INFO] MySQL repository files:"
-echo "$MYSQL_REPO_FILES"
-
-# Replace possible selected MySQL release with 8.4 LTS.
-for FILE in $MYSQL_REPO_FILES; do
-
-    if grep -q "mysql-" "$FILE"; then
-
-        sed -i \
-            -E 's/mysql-[0-9]+\.[0-9]+(-lts)?/mysql-8.4-lts/g' \
-            "$FILE"
-
+  if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+    if [ "$action" = "start" ]; then
+      systemctl enable --now "$svc"
+    else
+      systemctl "$action" "$svc"
     fi
+  else
+    service "$svc" "$action"
+  fi
+}
 
-done
+echo "=== [1/5] Updating package lists and installing dependencies ==="
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y apache2 php libapache2-mod-php php-mysql php-mbstring php-zip php-gd php-json php-curl mysql-server debconf-utils net-tools
 
-# Show repository configuration
-echo ""
-echo "[INFO] MySQL repository configuration:"
+echo "=== [2/5] Starting MySQL & Apache ==="
+manage_service start mysql
+manage_service start apache2
 
-grep -R "repo.mysql.com" \
-    /etc/apt/sources.list.d/ \
-    2>/dev/null || true
+echo "=== [3/5] Configuring MySQL admin user with random password ==="
+PMA_USER="admin"
+PMA_PASS="$(openssl rand -base64 24)"
 
-# --------------------------------------------------
-# 6. Install MySQL
-# --------------------------------------------------
+mysql -e "CREATE USER IF NOT EXISTS '${PMA_USER}'@'localhost' IDENTIFIED BY '${PMA_PASS}';"
+mysql -e "ALTER USER '${PMA_USER}'@'localhost' IDENTIFIED BY '${PMA_PASS}';"
+mysql -e "GRANT ALL PRIVILEGES ON *.* TO '${PMA_USER}'@'localhost' WITH GRANT OPTION;"
+mysql -e "FLUSH PRIVILEGES;"
 
-echo ""
-echo "[4/7] Installing MySQL ${MYSQL_VERSION}..."
+echo "=== [4/5] Installing phpMyAdmin ==="
+echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/mysql/admin-pass password ${PMA_PASS}" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/mysql/app-pass password ${PMA_PASS}" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/app-password-confirm password ${PMA_PASS}" | debconf-set-selections
 
-apt-get update
+apt-get install -y phpmyadmin
 
-apt-get install -y mysql-server mysql-client
-
-# --------------------------------------------------
-# 7. Start MySQL
-# --------------------------------------------------
-
-echo ""
-echo "[5/7] Starting MySQL..."
-
-# Kaggle containers may not use systemd.
-# Try systemctl first, then service.
-
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl start mysql 2>/dev/null || true
+if [ -f /etc/phpmyadmin/apache.conf ] && [ ! -L /etc/apache2/conf-enabled/phpmyadmin.conf ]; then
+  ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-enabled/phpmyadmin.conf
 fi
 
-service mysql start 2>/dev/null || true
+echo "=== [5/5] Testing configuration, reloading Apache & saving credentials ==="
+apache2ctl configtest
+manage_service reload apache2
 
-# Give MySQL a moment to start.
-sleep 3
+# Port and IP Detection
+HTTP_PORT=$(ss -tulpn 2>/dev/null | grep apache2 | awk '{print $5}' | awk -F: '{print $NF}' | head -n 1 || echo "80")
+MYSQL_PORT=$(ss -tulpn 2>/dev/null | grep mysqld | awk '{print $5}' | awk -F: '{print $NF}' | head -n 1 || echo "3306")
+HTTP_PORT=${HTTP_PORT:-80}
+MYSQL_PORT=${MYSQL_PORT:-3306}
 
-if mysqladmin ping >/dev/null 2>&1; then
-    echo "[OK] MySQL is running."
-else
-    echo "[WARNING] MySQL did not respond immediately."
-fi
+CRED_DIR="/workspaces/services/mysql+phpadmin"
+CRED_FILE="${CRED_DIR}/credentials.txt"
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 
-# --------------------------------------------------
-# 8. Create MySQL user
-# --------------------------------------------------
+mkdir -p "$CRED_DIR"
+cat > "$CRED_FILE" <<EOF
+MySQL & phpMyAdmin Credentials
+==============================
+Service Ports:
+  - Apache / Web Port : ${HTTP_PORT}
+  - MySQL Database    : ${MYSQL_PORT}
 
-echo ""
-echo "[INFO] Creating MySQL user..."
+Authentication:
+  - Username          : ${PMA_USER}
+  - Password          : ${PMA_PASS}
 
-mysql <<EOF
-
-CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'localhost'
-IDENTIFIED BY '${MYSQL_PASSWORD}';
-
-ALTER USER '${MYSQL_USER}'@'localhost'
-IDENTIFIED BY '${MYSQL_PASSWORD}';
-
-GRANT ALL PRIVILEGES
-ON *.*
-TO '${MYSQL_USER}'@'localhost';
-
-FLUSH PRIVILEGES;
-
+Access Links:
+  - Local Access      : http://localhost:${HTTP_PORT}/phpmyadmin
+${SERVER_IP:+  - LAN/IP Access     : http://${SERVER_IP}:${HTTP_PORT}/phpmyadmin}
 EOF
-
-# --------------------------------------------------
-# 9. Install phpMyAdmin
-# --------------------------------------------------
+chmod 600 "$CRED_FILE"
 
 echo ""
-echo "[6/7] Installing phpMyAdmin ${PHPMYADMIN_VERSION}..."
-
-cd /tmp
-
-PHPMYADMIN_ARCHIVE="phpMyAdmin-${PHPMYADMIN_VERSION}-all-languages.tar.gz"
-
-PHPMYADMIN_URL="https://www.phpmyadmin.net/downloads/${PHPMYADMIN_ARCHIVE}"
-
-wget -q \
-    "$PHPMYADMIN_URL" \
-    -O "$PHPMYADMIN_ARCHIVE"
-
-if [ ! -s "$PHPMYADMIN_ARCHIVE" ]; then
-    echo "ERROR: Failed to download phpMyAdmin."
-    exit 1
-fi
-
-rm -rf "/tmp/phpMyAdmin-${PHPMYADMIN_VERSION}"
-
-tar -xzf "$PHPMYADMIN_ARCHIVE"
-
-rm -rf "$PHPMYADMIN_DIR"
-
-mkdir -p "$PHPMYADMIN_DIR"
-
-cp -a \
-    "/tmp/phpMyAdmin-${PHPMYADMIN_VERSION}/." \
-    "$PHPMYADMIN_DIR/"
-
-# phpMyAdmin temporary directory
-mkdir -p "$PHPMYADMIN_DIR/tmp"
-
-chmod 777 "$PHPMYADMIN_DIR/tmp"
-
-# Apache permissions
-chown -R www-data:www-data "$PHPMYADMIN_DIR"
-
-# --------------------------------------------------
-# 10. Configure phpMyAdmin
-# --------------------------------------------------
-
-echo ""
-echo "[INFO] Configuring phpMyAdmin..."
-
-CONFIG_FILE="$PHPMYADMIN_DIR/config.inc.php"
-
-if [ ! -f "$CONFIG_FILE" ]; then
-
-cat > "$CONFIG_FILE" <<'EOF'
-<?php
-
-$cfg['blowfish_secret'] = 'kaggle-mysql-phpmyadmin-secret-CHANGE-ME-123456789';
-
-$i = 1;
-
-$cfg['Servers'][$i]['auth_type'] = 'cookie';
-$cfg['Servers'][$i]['host'] = '127.0.0.1';
-$cfg['Servers'][$i]['port'] = '3306';
-$cfg['Servers'][$i]['compress'] = false;
-$cfg['Servers'][$i]['AllowNoPassword'] = false;
-
-$cfg['TempDir'] = '/var/www/html/phpmyadmin/tmp';
-
-?>
-EOF
-
-fi
-
-chown www-data:www-data "$CONFIG_FILE"
-chmod 640 "$CONFIG_FILE"
-
-# --------------------------------------------------
-# 11. Configure Apache
-# --------------------------------------------------
-
-echo ""
-echo "[INFO] Configuring Apache..."
-
-a2enmod php* 2>/dev/null || true
-
-cat > /etc/apache2/conf-available/phpmyadmin.conf <<EOF
-Alias /phpmyadmin ${PHPMYADMIN_DIR}
-
-<Directory ${PHPMYADMIN_DIR}>
-    Options FollowSymLinks
-    DirectoryIndex index.php
-
-    AllowOverride All
-
-    Require all granted
-</Directory>
-EOF
-
-a2enconf phpmyadmin
-
-# --------------------------------------------------
-# 12. Start Apache
-# --------------------------------------------------
-
-echo ""
-echo "[7/7] Starting Apache..."
-
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl start apache2 2>/dev/null || true
-fi
-
-service apache2 start 2>/dev/null || true
-
-# Restart Apache to apply configuration
-service apache2 restart 2>/dev/null || true
-
-# --------------------------------------------------
-# 13. Verify installation
-# --------------------------------------------------
-
-echo ""
-echo "=========================================="
-echo " Installation completed"
-echo "=========================================="
-
-echo ""
-echo "MySQL:"
-mysql --version
-
-echo ""
-echo "phpMyAdmin:"
-echo "Version: ${PHPMYADMIN_VERSION}"
-
-echo ""
-echo "MySQL user:"
-echo "  Username: ${MYSQL_USER}"
-echo "  Password: ${MYSQL_PASSWORD}"
-
-echo ""
-echo "Local phpMyAdmin:"
-echo "  http://127.0.0.1/phpmyadmin/"
-
-echo ""
-echo "MySQL status:"
-mysqladmin ping 2>/dev/null || true
-
-echo ""
-echo "Apache status:"
-service apache2 status --no-pager 2>/dev/null || true
-
-echo ""
-echo "=========================================="
-echo " Done"
-echo "=========================================="
+echo "=========================================================="
+echo "Installation completed successfully!"
+echo "Credentials saved to: ${CRED_FILE}"
+echo "=========================================================="
