@@ -28,6 +28,8 @@ enum Commands {
     Server(ServerArgs),
     /// Run as Tunnel Client (on local machine)
     Client(ClientArgs),
+    /// Generate a cryptographically secure 256-bit random token
+    GenToken,
 }
 
 #[derive(Args, Debug)]
@@ -104,13 +106,26 @@ async fn main() -> Result<()> {
                 config.listen = listen;
             }
             if let Some(token) = args.token {
-                config.token = token;
+                if token.eq_ignore_ascii_case("auto") || token.eq_ignore_ascii_case("generate") {
+                    config.token = config::generate_secure_token();
+                } else {
+                    config.token = token;
+                }
+            } else if config.token.eq_ignore_ascii_case("auto")
+                || config.token.is_empty()
+                || config.token == "12345"
+            {
+                config.token = config::generate_secure_token();
             }
             if !args.allowed.is_empty() {
                 config.allowed_targets = Some(args.allowed);
             }
 
             server::run_server(config).await?;
+        }
+        Commands::GenToken => {
+            let token = config::generate_secure_token();
+            println!("{}", token);
         }
         Commands::Client(args) => {
             let mut config = if let Some(path) = args.config {

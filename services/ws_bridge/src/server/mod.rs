@@ -18,25 +18,23 @@ pub async fn run_server(config: ServerConfig) -> Result<()> {
         .await
         .with_context(|| format!("Failed to bind server listener on {}", addr))?;
 
-    info!("===============================================");
-    info!("            WSB MULTI-PROTOCOL SERVER          ");
-    info!("===============================================");
+    info!("===========================================================");
+    info!("               WSB MULTI-PROTOCOL SERVER                   ");
+    info!("===========================================================");
     info!("WebSocket listening on: {}", addr);
-    info!(
-        "Auth token: {}",
-        if config.token == "12345" {
-            "DEFAULT (12345) - recommended to change in production"
-        } else {
-            "[CONFIGURED]"
-        }
-    );
+    println!();
+    println!("===========================================================");
+    println!(" 🔑 AUTH TOKEN (Copy this into client --token):");
+    println!("    {}", config.token);
+    println!("===========================================================");
+    println!();
     if let Some(ref targets) = config.allowed_targets {
         info!("Allowed target whitelist: {:?}", targets);
     } else {
         info!("Allowed target whitelist: ALL (unrestricted)");
     }
     info!("Protocols supported: TCP, UDP, HTTP, SOCKS5 forward");
-    info!("===============================================");
+    info!("===========================================================");
 
     let config = Arc::new(config);
 

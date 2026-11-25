@@ -17,7 +17,15 @@ fn default_server_listen() -> String {
 }
 
 fn default_token() -> String {
-    "12345".to_string()
+    "auto".to_string()
+}
+
+/// Generates a cryptographically secure 256-bit (64 hex characters) random token
+pub fn generate_secure_token() -> String {
+    use rand::RngCore;
+    let mut bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
 impl Default for ServerConfig {

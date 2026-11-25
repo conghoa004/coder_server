@@ -5,8 +5,10 @@
 # Port to listen for incoming WebSocket connections
 listen = "0.0.0.0:8766"
 
-# Secret token required from clients to authenticate
-token = "12345"
+# Secret token required from clients to authenticate.
+# Set to "auto" (default) to automatically generate a cryptographically secure 256-bit token on startup,
+# or specify your own static secret token.
+token = "auto"
 
 # Optional security whitelist of permitted target addresses.
 # If omitted or commented out, client can connect to any target address.

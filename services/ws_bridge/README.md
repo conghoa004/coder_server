@@ -88,7 +88,14 @@ File thực thi: `target\release\wsb.exe`.
 
 #### Cách 2: Dùng cờ lệnh trực tiếp (CLI flags)
 ```bash
+# Tự động tạo token ngẫu nhiên bảo mật 256-bit (Khuyên dùng):
+./wsb server --listen 0.0.0.0:8766
+
+# Hoặc chỉ định token cố định theo ý muốn:
 ./wsb server --listen 0.0.0.0:8766 --token "mat-khau-bi-mat"
+
+# Tạo riêng một token ngẫu nhiên để lưu vào file cấu hình:
+./wsb gen-token
 ```
 
 #### Public server ra internet bằng Cloudflare Tunnel:
