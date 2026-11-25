@@ -124,18 +124,23 @@ fi
 # Enable mod_rewrite and mod_headers for proxy/tunnel compatibility
 a2enmod rewrite headers >/dev/null 2>&1 || true
 
-# Redirect exact root "/" to "/phpmyadmin" (works behind Cloudflare Tunnel & direct access)
+# Avoid rewriting Location header back to local server name behind Cloudflare Tunnel
 cat > /etc/apache2/conf-enabled/root-to-phpmyadmin.conf <<'EOF'
 <IfModule mod_setenvif.c>
     SetEnvIf X-Forwarded-Proto "^https$" HTTPS=on
 </IfModule>
 
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteCond %{REQUEST_URI} ^/$
-    RewriteRule ^/?$ /phpmyadmin [R=302,L]
+<IfModule mod_headers.c>
+    UseCanonicalName Off
 </IfModule>
 EOF
+
+# Put root redirect directly inside default VirtualHost so it takes effect cleanly
+DEFAULT_VHOST="/etc/apache2/sites-available/000-default.conf"
+if [ -f "$DEFAULT_VHOST" ] && ! grep -q "RewriteRule \^/?\$ /phpmyadmin" "$DEFAULT_VHOST"; then
+  sed -i '/DocumentRoot \/var\/www\/html/a \
+\n\tRewriteEngine On\n\tRewriteCond %{REQUEST_URI} ^/$\n\tRewriteRule ^/?$ /phpmyadmin [R=302,L]' "$DEFAULT_VHOST"
+fi
 
 echo "=== [5/5] Testing configuration, restarting Apache & saving credentials ==="
 apache2ctl configtest
