@@ -23,7 +23,7 @@ echo "=========================================="
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: Please run this script as root."
     echo "Example:"
-    echo "  sudo bash install_mysql_phpmyadmin.sh"
+    echo "  sudo bash instal+start.sh"
     exit 1
 fi
 
