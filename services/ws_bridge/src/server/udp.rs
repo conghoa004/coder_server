@@ -1,3 +1,4 @@
+use crate::bridge::WS_PING_INTERVAL;
 use anyhow::{Context, Result};
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
@@ -8,35 +9,48 @@ use tokio_tungstenite::WebSocketStream;
 use tracing::debug;
 
 const UDP_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+const UDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
-pub async fn handle_udp(
+pub async fn connect_udp_target(target: &str) -> Result<UdpSocket> {
+    tokio::time::timeout(UDP_CONNECT_TIMEOUT, async {
+        let target_addr = tokio::net::lookup_host(target)
+            .await
+            .with_context(|| format!("Failed to resolve UDP target {}", target))?
+            .next()
+            .with_context(|| format!("No address resolved for UDP target {}", target))?;
+
+        let bind_addr = if target_addr.is_ipv4() {
+            "0.0.0.0:0"
+        } else {
+            "[::]:0"
+        };
+
+        // Bind ephemeral UDP socket matching target IP family
+        let socket = UdpSocket::bind(bind_addr)
+            .await
+            .with_context(|| format!("Failed to bind ephemeral UDP socket on {}", bind_addr))?;
+
+        socket
+            .connect(target_addr)
+            .await
+            .with_context(|| format!("Failed to connect UDP socket to target {}", target_addr))?;
+
+        Ok(socket)
+    })
+    .await
+    .with_context(|| format!("Timed out connecting to UDP target {}", target))?
+}
+
+pub async fn handle_udp_connected(
     mut ws_sender: SplitSink<WebSocketStream<TcpStream>, Message>,
     mut ws_receiver: SplitStream<WebSocketStream<TcpStream>>,
-    target: &str,
+    socket: UdpSocket,
 ) -> Result<()> {
-    let target_addr = tokio::net::lookup_host(target)
-        .await
-        .with_context(|| format!("Failed to resolve UDP target {}", target))?
-        .next()
-        .with_context(|| format!("No address resolved for UDP target {}", target))?;
-
-    let bind_addr = if target_addr.is_ipv4() {
-        "0.0.0.0:0"
-    } else {
-        "[::]:0"
-    };
-
-    // Bind ephemeral UDP socket matching target IP family
-    let socket = UdpSocket::bind(bind_addr)
-        .await
-        .with_context(|| format!("Failed to bind ephemeral UDP socket on {}", bind_addr))?;
-
-    socket
-        .connect(target_addr)
-        .await
-        .with_context(|| format!("Failed to connect UDP socket to target {}", target_addr))?;
-
     let mut buf = vec![0u8; 65536];
+    let mut ping_interval = tokio::time::interval(WS_PING_INTERVAL);
+    ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    ping_interval.tick().await; // consume initial immediate tick
+
     let idle_sleep = tokio::time::sleep(UDP_IDLE_TIMEOUT);
     tokio::pin!(idle_sleep);
 
@@ -73,6 +87,12 @@ pub async fn handle_udp(
                         debug!("UDP read error: {}", e);
                         break;
                     }
+                }
+            }
+            _ = ping_interval.tick() => {
+                if let Err(e) = ws_sender.send(Message::Ping(Vec::new())).await {
+                    debug!("WS ping error in UDP tunnel: {}", e);
+                    break;
                 }
             }
             _ = &mut idle_sleep => {

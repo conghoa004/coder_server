@@ -7,7 +7,7 @@ use std::path::Path;
 pub struct ServerConfig {
     #[serde(default = "default_server_listen")]
     pub listen: String,
-    #[serde(default = "default_token")]
+    #[serde(default = "default_server_token")]
     pub token: String,
     pub allowed_targets: Option<Vec<String>>,
 }
@@ -16,8 +16,12 @@ fn default_server_listen() -> String {
     "0.0.0.0:8766".to_string()
 }
 
-fn default_token() -> String {
+fn default_server_token() -> String {
     "auto".to_string()
+}
+
+fn default_client_token() -> String {
+    "12345".to_string()
 }
 
 /// Generates a cryptographically secure 256-bit (64 hex characters) random token
@@ -32,7 +36,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             listen: default_server_listen(),
-            token: default_token(),
+            token: default_server_token(),
             allowed_targets: None,
         }
     }
@@ -41,7 +45,7 @@ impl Default for ServerConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ClientConfig {
     pub ws_url: String,
-    #[serde(default = "default_token")]
+    #[serde(default = "default_client_token")]
     pub token: String,
     #[serde(default)]
     pub tunnels: Vec<TunnelRule>,

@@ -1,3 +1,4 @@
+use crate::bridge::WS_PING_INTERVAL;
 use crate::client::connect_tunnel;
 use crate::config::TunnelRule;
 use crate::protocol::TunnelProtocol;
@@ -14,7 +15,12 @@ use tracing::{debug, error, info, warn};
 
 const UDP_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
-type SessionMap = Arc<Mutex<HashMap<SocketAddr, mpsc::Sender<Vec<u8>>>>>;
+struct SessionEntry {
+    id: u64,
+    sender: mpsc::Sender<Vec<u8>>,
+}
+
+type SessionMap = Arc<Mutex<HashMap<SocketAddr, SessionEntry>>>;
 
 pub async fn run_udp_listener(
     rule: TunnelRule,
@@ -30,6 +36,7 @@ pub async fn run_udp_listener(
     info!("[UDP:{}] Listening on {}", rule.name, rule.listen);
 
     let sessions: SessionMap = Arc::new(Mutex::new(HashMap::new()));
+    let mut next_session_id: u64 = 0;
     let mut buf = vec![0u8; 65536];
 
     loop {
@@ -44,31 +51,42 @@ pub async fn run_udp_listener(
         let packet = buf[..len].to_vec();
 
         // Keep lock short and never await while holding it
-        let need_new_session = {
+        let pending_packet = {
             let mut map = sessions.lock().await;
-            if let Some(sender) = map.get(&peer_addr) {
-                match sender.try_send(packet.clone()) {
-                    Ok(()) => false,
+            if let Some(entry) = map.get(&peer_addr) {
+                match entry.sender.try_send(packet) {
+                    Ok(()) => None,
                     Err(mpsc::error::TrySendError::Full(_)) => {
-                        debug!("[UDP:{}] Session queue full for {}, dropping packet", rule.name, peer_addr);
-                        false
+                        debug!(
+                            "[UDP:{}] Session queue full for {}, dropping packet",
+                            rule.name, peer_addr
+                        );
+                        None
                     }
-                    Err(mpsc::error::TrySendError::Closed(_)) => {
+                    Err(mpsc::error::TrySendError::Closed(returned_packet)) => {
                         map.remove(&peer_addr);
-                        true
+                        Some(returned_packet)
                     }
                 }
             } else {
-                true
+                Some(packet)
             }
         };
 
-        if need_new_session {
+        if let Some(packet) = pending_packet {
+            next_session_id = next_session_id.wrapping_add(1);
+            let session_id = next_session_id;
             let (tx, rx) = mpsc::channel(100);
             let _ = tx.try_send(packet);
             {
                 let mut map = sessions.lock().await;
-                map.insert(peer_addr, tx);
+                map.insert(
+                    peer_addr,
+                    SessionEntry {
+                        id: session_id,
+                        sender: tx,
+                    },
+                );
             }
 
             let sessions_clone = Arc::clone(&sessions);
@@ -79,7 +97,10 @@ pub async fn run_udp_listener(
             let name = rule.name.clone();
 
             tokio::spawn(async move {
-                debug!("[UDP:{}] Starting new UDP session for peer {}", name, peer_addr);
+                debug!(
+                    "[UDP:{}] Starting new UDP session {} for peer {}",
+                    name, session_id, peer_addr
+                );
                 if let Err(e) = handle_udp_session(
                     rx,
                     peer_addr,
@@ -93,8 +114,15 @@ pub async fn run_udp_listener(
                     error!("[UDP:{}] Session error for {}: {:#}", name, peer_addr, e);
                 }
                 let mut m = sessions_clone.lock().await;
-                m.remove(&peer_addr);
-                debug!("[UDP:{}] Closed UDP session for peer {}", name, peer_addr);
+                if m.get(&peer_addr)
+                    .is_some_and(|entry| entry.id == session_id)
+                {
+                    m.remove(&peer_addr);
+                }
+                debug!(
+                    "[UDP:{}] Closed UDP session {} for peer {}",
+                    name, session_id, peer_addr
+                );
             });
         }
     }
@@ -110,6 +138,10 @@ async fn handle_udp_session(
 ) -> Result<()> {
     let (mut ws_sender, mut ws_receiver) =
         connect_tunnel(ws_url, token, TunnelProtocol::Udp, target).await?;
+
+    let mut ping_interval = tokio::time::interval(WS_PING_INTERVAL);
+    ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    ping_interval.tick().await; // consume initial immediate tick
 
     let idle_sleep = tokio::time::sleep(UDP_IDLE_TIMEOUT);
     tokio::pin!(idle_sleep);
@@ -143,6 +175,12 @@ async fn handle_udp_session(
                         debug!("WS receive error in UDP tunnel: {}", e);
                         break;
                     }
+                }
+            }
+            _ = ping_interval.tick() => {
+                if let Err(e) = ws_sender.send(Message::Ping(Vec::new())).await {
+                    debug!("WS ping error in UDP tunnel: {}", e);
+                    break;
                 }
             }
             _ = &mut idle_sleep => {

@@ -71,6 +71,17 @@ async fn handle_socks5_client(
     let mut header = [0u8; 4];
     stream.read_exact(&mut header).await?;
 
+    if header[0] != 0x05 || header[2] != 0x00 {
+        stream
+            .write_all(&[0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+            .await?;
+        anyhow::bail!(
+            "Invalid SOCKS5 request header (ver={}, rsv={})",
+            header[0],
+            header[2]
+        );
+    }
+
     let cmd = header[1];
     let atyp = header[3];
 
@@ -91,6 +102,12 @@ async fn handle_socks5_client(
             // Domain name (1 byte len + string)
             let mut len = [0u8; 1];
             stream.read_exact(&mut len).await?;
+            if len[0] == 0 {
+                stream
+                    .write_all(&[0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                    .await?;
+                anyhow::bail!("Empty domain name in SOCKS5 request");
+            }
             let mut domain = vec![0u8; len[0] as usize];
             stream.read_exact(&mut domain).await?;
             String::from_utf8(domain).context("Invalid UTF-8 domain name")?
@@ -125,8 +142,17 @@ async fn handle_socks5_client(
     {
         Ok(t) => t,
         Err(e) => {
-            // General SOCKS server failure (0x01)
-            let _ = stream.write_all(&[0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await;
+            let err_msg = format!("{:#}", e);
+            let rep = if err_msg.contains("Connection refused") || err_msg.contains("refused") {
+                0x05 // Connection refused
+            } else if err_msg.contains("Forbidden") {
+                0x02 // Connection not allowed by ruleset
+            } else {
+                0x01 // General SOCKS server failure
+            };
+            let _ = stream
+                .write_all(&[0x05, rep, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                .await;
             return Err(e);
         }
     };

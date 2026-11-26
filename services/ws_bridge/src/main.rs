@@ -116,8 +116,8 @@ async fn main() -> Result<()> {
                     config.token = token;
                 }
             } else if config.token.eq_ignore_ascii_case("auto")
+                || config.token.eq_ignore_ascii_case("generate")
                 || config.token.is_empty()
-                || config.token == "12345"
             {
                 config.token = config::generate_secure_token();
             }
@@ -193,6 +193,12 @@ fn parse_tunnel_spec(spec: &str, protocol: TunnelProtocol) -> Result<TunnelRule>
     }
     let listen = parts[0].trim().to_string();
     let target = parts[1].trim().to_string();
+    if listen.is_empty() || target.is_empty() {
+        anyhow::bail!(
+            "Invalid tunnel spec '{}'. Both LISTEN_ADDR and TARGET_ADDR must be non-empty",
+            spec
+        );
+    }
     let name = format!("{}-{}", protocol, target.replace(':', "-"));
 
     Ok(TunnelRule {
@@ -201,4 +207,17 @@ fn parse_tunnel_spec(spec: &str, protocol: TunnelProtocol) -> Result<TunnelRule>
         listen,
         target,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_tunnel_spec_validation() {
+        assert!(parse_tunnel_spec("127.0.0.1:13306=127.0.0.1:3306", TunnelProtocol::Tcp).is_ok());
+        assert!(parse_tunnel_spec("=127.0.0.1:3306", TunnelProtocol::Tcp).is_err());
+        assert!(parse_tunnel_spec("127.0.0.1:13306=", TunnelProtocol::Tcp).is_err());
+        assert!(parse_tunnel_spec("127.0.0.1:13306", TunnelProtocol::Tcp).is_err());
+    }
 }

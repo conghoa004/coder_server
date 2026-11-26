@@ -220,7 +220,7 @@ Mở các công cụ quản trị như DBeaver, Navicat, MySQL Workbench hoặc 
 
 Hoặc kiểm tra kết nối bằng script Python có sẵn:
 ```bash
-python client/test_mysql.py
+python test_mysql.py
 ```
 
 ### 2. Truy cập phpMyAdmin / Web (Giao thức HTTP)
@@ -259,7 +259,7 @@ Chỉ với duy nhất một cổng proxy `127.0.0.1:1080`, bạn có thể truy
 |---|---|---|---|
 | `-c, --config <PATH>` | - | - | Đường dẫn tới file cấu hình TOML của server |
 | `-l, --listen <ADDR>` | `WS_BRIDGE_LISTEN` | `0.0.0.0:8766` | Địa chỉ IP và cổng lắng nghe kết nối WebSocket |
-| `-t, --token <SECRET>` | `WS_BRIDGE_TOKEN` | `12345` | Chuỗi bí mật dùng để xác thực client khi kết nối |
+| `-t, --token <SECRET>` | `WS_BRIDGE_TOKEN` | `auto` (tự sinh 256-bit) | Chuỗi bí mật dùng để xác thực client khi kết nối |
 | `--allow <TARGET>` | - | `(cho phép tất cả)` | Giới hạn chỉ cho phép kết nối tới các target cụ thể (vd: `127.0.0.1:3306`) |
 
 ### Lệnh `wsb client`

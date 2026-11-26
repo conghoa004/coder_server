@@ -102,12 +102,20 @@ pub async fn connect_tunnel(
         .await
         .context("Failed to send handshake request")?;
 
-    // Wait for handshake response
-    let resp_msg = match ws_receiver.next().await {
-        Some(Ok(msg)) => msg,
-        Some(Err(e)) => anyhow::bail!("Error receiving handshake response: {}", e),
-        None => anyhow::bail!("WebSocket closed by server during handshake"),
-    };
+    // Wait for handshake response with timeout (ignoring Ping/Pong control frames)
+    let handshake_timeout = Duration::from_secs(15);
+    let resp_msg = tokio::time::timeout(handshake_timeout, async {
+        loop {
+            match ws_receiver.next().await {
+                Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => continue,
+                Some(Ok(msg)) => return Ok(msg),
+                Some(Err(e)) => anyhow::bail!("Error receiving handshake response: {}", e),
+                None => anyhow::bail!("WebSocket closed by server during handshake"),
+            }
+        }
+    })
+    .await
+    .map_err(|_| anyhow::anyhow!("Timed out waiting for handshake response from server"))??;
 
     let resp_text = match resp_msg {
         Message::Text(t) => t,
@@ -119,6 +127,7 @@ pub async fn connect_tunnel(
         .context("Failed to parse HandshakeResponse JSON from server")?;
 
     if !resp.success {
+        let _ = ws_sender.close().await;
         anyhow::bail!("Handshake rejected by server: {}", resp.message);
     }
 
