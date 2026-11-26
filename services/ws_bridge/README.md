@@ -220,7 +220,7 @@ Mở các công cụ quản trị như DBeaver, Navicat, MySQL Workbench hoặc 
 
 Hoặc kiểm tra kết nối bằng script Python có sẵn:
 ```bash
-python test_mysql.py
+python test/test_mysql.py
 ```
 
 ### 2. Truy cập phpMyAdmin / Web (Giao thức HTTP)

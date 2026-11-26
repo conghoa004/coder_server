@@ -8,7 +8,7 @@ import sys
 # ==========================================
 MYSQL_CONFIG = {
     "host": "127.0.0.1",
-    "port": "<your_port>",
+    "port": 13306,
     "user": "<your_user>",
     "password": "<your_password>",
     "connection_timeout": 10
@@ -62,18 +62,25 @@ def test_mysql_connection():
         else:
             raise Error("SQL query test failed.")
 
-    except Error as e:
+    except (Error, TypeError, ValueError) as e:
         print("\n[ERROR] MySQL Connection Failed!")
         print(f"[DETAIL] {e}")
         sys.exit(1)
 
     finally:
         if cursor is not None:
-            cursor.close()
+            try:
+                cursor.close()
+            except Exception:
+                pass
 
-        if connection is not None and connection.is_connected():
-            connection.close()
-            print("\n[INFO] Connection closed.")
+        if connection is not None:
+            try:
+                if connection.is_connected():
+                    connection.close()
+                    print("\n[INFO] Connection closed.")
+            except Exception:
+                pass
 
         print("=" * 50)
 
