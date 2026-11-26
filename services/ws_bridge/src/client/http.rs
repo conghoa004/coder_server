@@ -181,17 +181,25 @@ where
                         None => line,
                     };
                     let size_str = std::str::from_utf8(size_part).ok().map(|s| s.trim());
-                    match size_str.and_then(|s| usize::from_str_radix(s, 16).ok()) {
-                        Some(chunk_size) => {
+                    let parsed_chunk = size_str
+                        .filter(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_hexdigit()))
+                        .and_then(|s| usize::from_str_radix(s, 16).ok());
+                    match parsed_chunk {
+                        Some(0) => {
                             writer.write_all(&buf[..crlf_pos + 2]).await?;
                             buf.drain(..crlf_pos + 2);
-                            mode = if chunk_size == 0 {
-                                HttpParseMode::ChunkTrailers
-                            } else {
-                                // +2 for the trailing CRLF after chunk payload
-                                HttpParseMode::ChunkData(chunk_size + 2)
-                            };
+                            mode = HttpParseMode::ChunkTrailers;
                         }
+                        Some(chunk_size) => match chunk_size.checked_add(2) {
+                            Some(total_len) => {
+                                writer.write_all(&buf[..crlf_pos + 2]).await?;
+                                buf.drain(..crlf_pos + 2);
+                                mode = HttpParseMode::ChunkData(total_len);
+                            }
+                            None => {
+                                mode = HttpParseMode::Passthrough;
+                            }
+                        },
                         None => {
                             mode = HttpParseMode::Passthrough;
                         }
@@ -339,10 +347,13 @@ fn parse_and_rewrite_request(raw: &[u8], target: &str) -> ParseOutcome {
                                 }
                             }
                         } else if header.name.eq_ignore_ascii_case("Content-Length") {
-                            if let Ok(val) = std::str::from_utf8(header.value) {
-                                if let Ok(len) = val.trim().parse::<usize>() {
-                                    content_length = Some(len);
-                                }
+                            let parsed_len = std::str::from_utf8(header.value)
+                                .ok()
+                                .and_then(|val| val.trim().parse::<usize>().ok());
+                            match (parsed_len, content_length) {
+                                (Some(len), None) => content_length = Some(len),
+                                (Some(len), Some(prev)) if len == prev => {}
+                                _ => return ParseOutcome::NotHttp,
                             }
                         }
 
@@ -461,5 +472,31 @@ mod tests {
             }
             _ => panic!("Expected HTTP request to parse and rewrite"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_http_handles_chunk_size_overflow_without_panic() {
+        let (mut in_writer, in_reader) = tokio::io::duplex(4096);
+        let (out_writer, mut out_reader) = tokio::io::duplex(4096);
+
+        let initial =
+            b"POST /up HTTP/1.1\r\nHost: 127.0.0.1:18080\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\nrest"
+                .to_vec();
+
+        let task = tokio::spawn(async move {
+            forward_and_rewrite_http(initial, in_reader, out_writer, "127.0.0.1:80")
+                .await
+                .unwrap();
+        });
+
+        in_writer.shutdown().await.unwrap();
+        let mut output = Vec::new();
+        out_reader.read_to_end(&mut output).await.unwrap();
+        task.await.unwrap();
+
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            "POST /up HTTP/1.1\r\nHost: 127.0.0.1:80\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\nrest"
+        );
     }
 }
